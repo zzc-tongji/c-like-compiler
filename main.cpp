@@ -95,6 +95,8 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p)
 	std::vector<char> bracket;
 	std::vector<char> brace;
 	std::vector<char> annotation;
+	// pair
+	std::pair<int64_t, int64_t> temp;
 	// The first line and the first function must be at the beginning of the source file.
 	source_file_p->line_.push_back(0);
 	source_file_p->function_.push_back(0);
@@ -108,6 +110,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p)
 			if (source_file_p->current_content_index_ < source_file_p->content_size_ - 1 && source_file_p->content_[source_file_p->current_content_index_ + 1] == '\n')
 			{
 				// Windows LF: \r\n
+				// fill in vector "line"
 				source_file_p->line_.push_back(source_file_p->current_content_index_ + 2);
 				if (source_file_p->current_content_index_ + 2 >= source_file_p->content_size_)
 				{
@@ -120,6 +123,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p)
 			else
 			{
 				// Mac OS LF : \r
+				// fill in vector "line"
 				source_file_p->line_.push_back(source_file_p->current_content_index_ + 1);
 				if (source_file_p->current_content_index_ + 1 >= source_file_p->content_size_)
 				{
@@ -130,6 +134,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p)
 			break;
 		case '\n':
 			// Linux LF: \n
+			// fill in vector "line"
 			source_file_p->line_.push_back(source_file_p->current_content_index_ + 1);
 			if (source_file_p->current_content_index_ + 1 >= source_file_p->content_size_)
 			{
@@ -143,7 +148,9 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p)
 			{
 				//annotation beginning: /*
 				annotation.push_back('@');
-				source_file_p->annotation_ = true;
+				source_file_p->annotation_now_ = true;
+				// fill in vector "annotation" (1)
+				temp.first = source_file_p->current_content_index_;
 				// skip the next character
 				source_file_p->current_content_index_ += 1;
 			}
@@ -160,20 +167,23 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p)
 					return -1;
 				}
 				annotation.pop_back();
-				source_file_p->annotation_ = false;
+				source_file_p->annotation_now_ = false;
+				// fill in vector "annotation" (2)
+				temp.second = source_file_p->current_content_index_ + 1;
+				source_file_p->annotation_.push_back(temp);
 				// skip the next character
 				source_file_p->current_content_index_ += 1;
 			}
 			break;
 		case '(':
-			if (source_file_p->annotation_)
+			if (source_file_p->annotation_now_)
 			{
 				break;
 			}
 			parenthesis.push_back('(');
 			break;
 		case ')':
-			if (source_file_p->annotation_)
+			if (source_file_p->annotation_now_)
 			{
 				break;
 			}
@@ -187,14 +197,14 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p)
 			parenthesis.pop_back();
 			break;
 		case '[':
-			if (source_file_p->annotation_)
+			if (source_file_p->annotation_now_)
 			{
 				break;
 			}
 			bracket.push_back('[');
 			break;
 		case ']':
-			if (source_file_p->annotation_)
+			if (source_file_p->annotation_now_)
 			{
 				break;
 			}
@@ -208,14 +218,14 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p)
 			bracket.pop_back();
 			break;
 		case '{':
-			if (source_file_p->annotation_)
+			if (source_file_p->annotation_now_)
 			{
 				break;
 			}
 			brace.push_back('{');
 			break;
 		case '}':
-			if (source_file_p->annotation_)
+			if (source_file_p->annotation_now_)
 			{
 				break;
 			}
@@ -230,6 +240,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p)
 			if (brace.empty())
 			{
 				// Character '}' in the first level means that a function comes to an end.
+				// fill in vector "function"
 				source_file_p->function_.push_back(source_file_p->current_content_index_ + 1);
 			}
 			break;
