@@ -116,26 +116,35 @@ int64_t SourceFile::JumpTo(int64_t location)
 	function_index_ -= 1;
 	function_ = function_table_[function_index_];
 	// annotation
-	annotation_index_ = 0;
-	for (int64_t i = 0; i < annotation_size_; ++i)
+	if (0 == annotation_size_)
 	{
-		if (location >= annotation_table_[annotation_index_].first)
-		{
-			annotation_index_ += 1;
-		}
-		else
-		{
-			break;
-		}
-	}
-	annotation_index_ -= 1;
-	if (location <= annotation_table_[annotation_index_].second)
-	{
-		annotation_ = true;
+		// No annotation exists. Function "MoveNext" will do nothing about annotation.
+		annotation_index_ = -2;
+		annotation_ = false;
 	}
 	else
 	{
-		annotation_ = false;
+		annotation_index_ = 0;
+		for (int64_t i = 0; i < annotation_size_; ++i)
+		{
+			if (location >= annotation_table_[annotation_index_].first)
+			{
+				annotation_index_ += 1;
+			}
+			else
+			{
+				break;
+			}
+		}
+		annotation_index_ -= 1;
+		if (location <= annotation_table_[annotation_index_].second)
+		{
+			annotation_ = true;
+		}
+		else
+		{
+			annotation_ = false;
+		}
 	}
 	return 1;
 }
