@@ -7,41 +7,40 @@
 class SourceFile
 {
 public:
-	// function
 	SourceFile();
 	~SourceFile();
 	void * Malloc(int64_t size);
 	void Free();
 	void ReadyToMove();
+	int64_t JumpTo(int64_t location);
 	int64_t MoveNext();
-	// active variable
-	int64_t current_content_index_;
-	int64_t current_line_no_;
-	int64_t current_line_index_;
-	int64_t current_function_no_;
-	int64_t current_function_index_;
-	int64_t annotation_index_;
-	bool annotation_now_;
-	// non-active variable
+	// content
 	char * content_;
 	int64_t content_size_;
-	std::vector<int64_t> line_;
-	std::vector<int64_t> function_; // Note: index of the beginning and the end of each function_ body (symbol "{" and "}")
-	std::vector<std::pair<int64_t, int64_t>> annotation_;
+	int64_t index_;
+	// line
+	std::vector<int64_t> line_table_;
+	int64_t line_size_;
+	int64_t line_index_;
+	int64_t line_;
+	// function
+	std::vector<int64_t> function_table_;
+	int64_t function_size_;
+	int64_t function_index_;
+	int64_t function_;
+	// annotation
+	std::vector<std::pair<int64_t, int64_t>> annotation_table_;
+	int64_t annotation_size_;
+	int64_t annotation_index_;
+	bool annotation_;
+private:
+	// lock of moving
 	bool move_enabled_;
 };
 
 SourceFile::SourceFile()
 {
 	content_ = NULL;
-	content_size_ = 0;
-	current_content_index_ = 0;
-	current_line_index_ = -1;
-	current_line_no_ = -1;
-	current_function_index_ = -1;
-	current_function_no_ = -1;
-	annotation_index_ = -1;
-	annotation_now_ = false;
 	move_enabled_ = false;
 }
 
@@ -62,34 +61,83 @@ void SourceFile::Free()
 	if (NULL != content_)
 	{
 		delete[] content_;
+		content_ = NULL;
 	}
 }
 
 void SourceFile::ReadyToMove()
 {
-	current_content_index_ = 0;
-	current_line_index_ = 0;
-	current_function_index_ = 0;
-	if (annotation_.empty())
+	// unlock
+	move_enabled_ = true;
+	// jump to the beginning
+	JumpTo(0);
+}
+
+int64_t SourceFile::JumpTo(int64_t location)
+{
+	if (false == move_enabled_)
 	{
-		annotation_index_ = -2;
-		annotation_now_ = false;
+		return -1;
 	}
-	else
+	if (location < 0 || location > content_size_ - 1)
 	{
-		annotation_index_ = -1;
-		if (0 == annotation_[0].first)
+		return 0;
+	}
+	// content index
+	index_ = location;
+	// line
+	line_index_ = 0;
+	for (int64_t i = 0; i < line_size_; ++i)
+	{
+		if (location >= line_table_[line_index_])
 		{
-			// The source file begins with annotation.
-			annotation_now_ = true;
+			line_index_ += 1;
 		}
 		else
 		{
-			// The source file begins with non-annotation.
-			annotation_now_ = false;
+			break;
 		}
 	}
-	move_enabled_ = true;
+	line_index_ -= 1;
+	line_ = line_table_[line_index_];
+	// function
+	function_index_ = 0;
+	for (int64_t i = 0; i < function_size_; ++i)
+	{
+		if (location >= function_table_[function_index_])
+		{
+			function_index_ += 1;
+		}
+		else
+		{
+			break;
+		}
+	}
+	function_index_ -= 1;
+	function_ = function_table_[function_index_];
+	// annotation
+	annotation_index_ = 0;
+	for (int64_t i = 0; i < annotation_size_; ++i)
+	{
+		if (location >= annotation_table_[annotation_index_].first)
+		{
+			annotation_index_ += 1;
+		}
+		else
+		{
+			break;
+		}
+	}
+	annotation_index_ -= 1;
+	if (location <= annotation_table_[annotation_index_].second)
+	{
+		annotation_ = true;
+	}
+	else
+	{
+		annotation_ = false;
+	}
+	return 1;
 }
 
 int64_t SourceFile::MoveNext()
@@ -98,42 +146,42 @@ int64_t SourceFile::MoveNext()
 	{
 		return -1;
 	}
-	if (current_content_index_ == content_size_ - 1)
+	if (index_ == content_size_ - 1)
 	{
 		return 0;
 	}
 	// move
-	current_content_index_ += 1;
+	index_ += 1;
 	// line
-	if (current_line_index_ + 1 < line_.size() && current_content_index_ >= line_[current_line_index_ + 1])
+	if (line_index_ + 1 < line_size_ && index_ >= line_table_[line_index_ + 1])
 	{
-		current_line_index_ += 1;
-		current_line_no_ = line_[current_line_index_];
+		line_index_ += 1;
+		line_ = line_table_[line_index_];
 	}
 	// function
-	if (current_function_index_ + 1 < function_.size() && current_content_index_ > function_[current_function_index_ + 1])
+	if (function_index_ + 1 < function_size_ && index_ > function_table_[function_index_ + 1])
 	{
-		current_function_index_ += 1;
-		current_function_no_ = function_[current_function_index_];
+		function_index_ += 1;
+		function_ = function_table_[function_index_];
 	}
 	// annotation
 	if (-2 != annotation_index_)
 	{
-		if (annotation_now_)
+		if (annotation_)
 		{
-			if (current_content_index_ > annotation_[annotation_index_].second)
+			if (index_ > annotation_table_[annotation_index_].second)
 			{
 				// annotation => non-annotation
-				annotation_now_ = false;
+				annotation_ = false;
 			}
 		}
 		else
 		{
-			if (annotation_index_ + 1 < annotation_.size() && current_content_index_ >= annotation_[annotation_index_ + 1].first)
+			if (annotation_index_ + 1 < annotation_size_ && index_ >= annotation_table_[annotation_index_ + 1].first)
 			{
 				// non-annotation => annotation
 				annotation_index_ += 1;
-				annotation_now_ = true;
+				annotation_ = true;
 			}
 		}
 	}
