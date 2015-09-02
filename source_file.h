@@ -137,9 +137,17 @@ int64_t SourceFile::JumpTo(int64_t location)
 			}
 		}
 		annotation_index_ -= 1;
-		if (location <= annotation_table_[annotation_index_].second)
+		if (annotation_index_ >= 0)
 		{
-			annotation_ = true;
+			// There is an annotation at the beginning of the source file.
+			if (location <= annotation_table_[annotation_index_].second)
+			{
+				annotation_ = true;
+			}
+			else
+			{
+				annotation_ = false;
+			}
 		}
 		else
 		{
