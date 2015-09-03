@@ -9,7 +9,7 @@
 #include "block.h"
 
 int64_t ReadSourceFile(const char * path, SourceFile * source_file_p, Error * error_p);
-int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem> * function_table_p, Block ** block_root_pp);
+int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem> * function_table_p);
 
 int main(int argc, char ** argv)
 {
@@ -17,7 +17,6 @@ int main(int argc, char ** argv)
 	SourceFile source_file;
 	Error error;
 	std::vector<FunctionItem> function_table;
-	Block * block_root_p;
 
 	// test file
 	strcpy(path, "example.c.test");
@@ -28,7 +27,7 @@ int main(int argc, char ** argv)
 		system("PAUSE");
 		return 0;
 	}
-	if (-1 == Preprocess(&source_file, &error, &function_table, &block_root_p))
+	if (-1 == Preprocess(&source_file, &error, &function_table))
 	{
 		printf("%s\n", error.get_error_string_());
 		system("PAUSE");
@@ -107,7 +106,7 @@ int64_t ReadSourceFile(const char * path, SourceFile * source_file_p, Error * er
 	return 1;
 }
 
-int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem> * function_table_p, Block ** block_root_pp)
+int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem> * function_table_p)
 {
 	// stack of '(', '[', '{' and '@' (annotation)
 	std::vector<char> parenthesis;
@@ -117,6 +116,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 	// pair
 	std::pair<int64_t, int64_t> annotation_item;
 	// block
+	Block * block_root;
 	Block * block_p;
 	Block * block_next_p;
 	// line: The first line must be at the beginning of the source file.
@@ -125,8 +125,8 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 	function_table_p->push_back(FunctionItem());
 	(*function_table_p)[function_table_p->size() - 1].beginning_ = 0;
 	// block
-	(*block_root_pp) = new Block();
-	block_p = *block_root_pp;
+	block_root = new Block();
+	block_p = block_root;
 	block_next_p = block_p->child_;
 	// traverse
 	for (source_file_p->index_ = 0; source_file_p->index_ < source_file_p->content_size_; ++source_file_p->index_)
@@ -259,7 +259,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 				error_p->minor_no_ = 4;
 				error_p->line_no_ = source_file_p->line_table_.size() - 1;
 				// free
-				Block::s_FreeAll(*block_root_pp);
+				Block::s_FreeAll(block_root);
 				return -1;
 			}
 			block_next_p->SetName();
@@ -277,7 +277,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 				error_p->minor_no_ = 3;
 				error_p->line_no_ = source_file_p->line_table_.size() - 1;
 				// free
-				Block::s_FreeAll(*block_root_pp);
+				Block::s_FreeAll(block_root);
 				return -1;
 			}
 			brace.pop_back();
@@ -324,7 +324,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 		error_p->minor_no_ = 3;
 		error_p->line_no_ = source_file_p->line_table_.size() - 1;
 		// free
-		Block::s_FreeAll(*block_root_pp);
+		Block::s_FreeAll(block_root);
 		return -1;
 	}
 	if (false == annotation.empty())
@@ -335,7 +335,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 		return -1;
 	}
 	// link functions with blocks
-	for (block_p = (*block_root_pp)->child_; block_p != NULL; block_p = block_p->brother_)
+	for (block_p = block_root->child_; block_p != NULL; block_p = block_p->brother_)
 	{
 		for (int64_t i = 0; i < function_table_p->size(); ++i)
 		{
@@ -347,6 +347,15 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 			}
 		}
 	}
+	// unlink function-blocks from block-root
+	for (int64_t i = 0; i < function_table_p->size(); ++i)
+	{
+		(*function_table_p)[i].block_tree->parent_ = NULL;
+		(*function_table_p)[i].block_tree->brother_ = NULL;
+	}
+	// delete block-root
+	delete block_root;
+	block_root = NULL;
 	// get ready
 	source_file_p->ReadyToMove();
 	return 1;
