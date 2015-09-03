@@ -72,6 +72,7 @@
     <ClInclude Include="function_item.h" />
     <ClInclude Include="source_file.h" />
     <ClInclude Include="variable_item.h" />
+    <ClInclude Include="word.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="example.c.test" />

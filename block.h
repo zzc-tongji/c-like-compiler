@@ -7,6 +7,7 @@
 #include <math.h>
 #include <vector>
 #include "variable_item.h"
+#include "word.h"
 
 class FunctionItem;
 
@@ -34,7 +35,7 @@ public:
 	char * name_out_;
 	// information
 	std::vector<VariableItem> variable_table_;
-	// other data ...
+	Word word_header;
 private:
 	// id allocator
 	static int64_t s_GenerateId();
@@ -62,11 +63,6 @@ Block::Block()
 	name_ = NULL;
 	name_in_ = NULL;
 	name_out_ = NULL;
-}
-
-Block::~Block()
-{
-	// use later ...
 }
 
 Block * Block::AddChild()

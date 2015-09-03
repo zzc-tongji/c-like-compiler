@@ -23,7 +23,6 @@ public:
 	// information
 	int64_t return_type_;
 	std::vector<VariableItem> parameter_table_;
-	// ...
 };
 
 FunctionItem::FunctionItem()
