@@ -23,11 +23,6 @@ public:
 	int64_t line_size_;
 	int64_t line_index_;
 	int64_t line_;
-	// function
-	std::vector<int64_t> function_table_;
-	int64_t function_size_;
-	int64_t function_index_;
-	int64_t function_;
 	// annotation
 	std::vector<std::pair<int64_t, int64_t>> annotation_table_;
 	int64_t annotation_size_;
@@ -100,21 +95,6 @@ int64_t SourceFile::JumpTo(int64_t location)
 	}
 	line_index_ -= 1;
 	line_ = line_table_[line_index_];
-	// function
-	function_index_ = 0;
-	for (int64_t i = 0; i < function_size_; ++i)
-	{
-		if (location >= function_table_[function_index_])
-		{
-			function_index_ += 1;
-		}
-		else
-		{
-			break;
-		}
-	}
-	function_index_ -= 1;
-	function_ = function_table_[function_index_];
 	// annotation
 	if (0 == annotation_size_)
 	{
@@ -174,12 +154,6 @@ int64_t SourceFile::MoveNext()
 	{
 		line_index_ += 1;
 		line_ = line_table_[line_index_];
-	}
-	// function
-	if (function_index_ + 1 < function_size_ && index_ > function_table_[function_index_ + 1])
-	{
-		function_index_ += 1;
-		function_ = function_table_[function_index_];
 	}
 	// annotation
 	if (-2 != annotation_index_)

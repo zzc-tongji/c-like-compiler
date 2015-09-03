@@ -67,14 +67,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="main.cpp" />
-  </ItemGroup>
-  <ItemGroup>
+    <ClInclude Include="block.h" />
     <ClInclude Include="error.h" />
+    <ClInclude Include="function_item.h" />
     <ClInclude Include="source_file.h" />
+    <ClInclude Include="variable_item.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="example.c.test" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

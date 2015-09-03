@@ -58,6 +58,9 @@ char * Error::get_error_string_()
 	case 0x1003:
 		sprintf(error_string_, "[0x%I64X] Line %I64d", error_no_, line_no_ + 1);
 		break;
+	case 0x1004:
+		sprintf(error_string_, "[0x%I64X] Line %I64d", error_no_, line_no_ + 1);
+		break;
 	default:
 		error_string_[0] = '\0';
 		break;
