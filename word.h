@@ -11,12 +11,17 @@ class Word
 public:
 	const int64_t c_keyword_ = 0;
 	const int64_t c_identifier_ = 1;
-	const int64_t c_constant_ = 2;
-	const int64_t c_operator_ = 3;
-	const int64_t c_delimiter_ = 4;
+	const int64_t c_constant_int_ = 2;
+	const int64_t c_constant_double_ = 3;
+	const int64_t c_operator_ = 4;
+	const int64_t c_delimiter_ = 5;
 	static Word * s_Insert(Word * it_next);
 	static void s_Remove(Word * it_self);
-	static void s_RemoveAllNext(Word * word);
+	static int64_t s_MoveBufferIndex(bool offset, int64_t number);
+	static char s_buffer_[1024];
+	static int64_t s_buffer_index_;
+	// keyword table
+	static std::vector<char *> s_keyword_table_;
 	Word();
 	~Word();
 	void RemoveAllNext();
@@ -29,12 +34,16 @@ public:
 	int64_t type_;
 };
 
-static Word * s_Insert(Word * it_next)
+Word * Word::s_Insert(Word * it_next)
 {
-	Word * new_node = new Word();
-	if (NULL == it_next || NULL == new_node)
+	if (NULL == it_next)
 	{
-		return new_node;
+		throw std::exception("Function \"Word * Word::s_Insert(Word * it_next)\" says: Invalid parameter \"it_next\".");
+	}
+	Word * new_node = new Word();
+	if (NULL == new_node)
+	{
+		return NULL;
 	}
 	// the new node
 	new_node->previous_ = it_next;
@@ -49,8 +58,12 @@ static Word * s_Insert(Word * it_next)
 	return new_node;
 }
 
-static void s_Remove(Word * it_self) // Pointer "it_self" must point to a dynamically allocated node!
+void Word::s_Remove(Word * it_self) // Pointer "it_self" must point to a dynamically allocated node!
 {
+	if (NULL == it_self)
+	{
+		throw std::exception("Function \"void Word::s_Remove(Word * it_self)\" says: Invalid parameter \"it_self\".");
+	}
 	// previous node: set next
 	if (it_self->previous_)
 	{
@@ -65,13 +78,50 @@ static void s_Remove(Word * it_self) // Pointer "it_self" must point to a dynami
 	delete it_self;
 }
 
-static void s_RemoveAllNext(Word * word) // Must be dynamically allocated nodes!
+std::vector<char *> Word::s_keyword_table_ =
 {
-	if (word)
+	"void",
+	"int",
+	"double",
+	"if",
+	"else",
+	"while",
+	"return",
+	"inputi",
+	"inputd",
+	"outputi",
+	"outputd"
+};
+
+int64_t Word::s_MoveBufferIndex(bool offset, int64_t number)
+{
+	// Note: Fill first and move next!
+	if (offset)
 	{
-		word->RemoveAllNext();
+		// move
+		if (s_buffer_index_ + number > 1023)
+		{
+			return -1;
+		}
+		s_buffer_index_ += number;
 	}
+	else
+	{
+		// jump to
+		if (number < 0 || number > 1023)
+		{
+			throw std::exception("Function \"int64_t Word::s_MoveBufferIndex(bool offset, int64_t number)\" says: Invalid parameter \"number\".");
+		}
+		s_buffer_index_ = number;
+	}
+	// set 0
+	s_buffer_[s_buffer_index_] = '\0';
+	return 1;
 }
+
+char Word::s_buffer_[1024] = { '\0' };
+
+int64_t Word::s_buffer_index_ = 0;
 
 Word::Word()
 {
@@ -102,9 +152,9 @@ void Word::RemoveAllNext() // This function should not be used outside this head
 
 int64_t Word::SetContent(const char * content)
 {
-	if (NULL == content)
+	if (NULL == content || "" == content)
 	{
-		return 0;
+		throw std::exception("Function \"int64_t Word::SetContent(const char * content)\" says: Invalid parameter \"content\".");
 	}
 	content_ = new char[strlen(content) + 1];
 	if (NULL == content_)

@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <math.h>
 #include <vector>
+#include <exception>
 #include "variable_item.h"
 #include "word.h"
 
@@ -16,7 +17,6 @@ class Block
 public:
 	static void s_FreeAll(Block * block);
 	Block();
-	~Block();
 	Block * AddChild();
 	void FreeAll();
 	int64_t SetName();
@@ -44,11 +44,12 @@ private:
 
 void Block::s_FreeAll(Block * block)
 {
-	if (block)
+	if (NULL == block)
 	{
-		block->FreeAll();
-		delete block;
+		throw std::exception("Function \"void Block::s_FreeAll(Block * block)\" says: Invalid parameter \"block\".");
 	}
+	block->FreeAll();
+	delete block;
 }
 
 Block::Block()
@@ -157,12 +158,12 @@ int64_t Block::SetName()
 	return 1;
 }
 
-int64_t Block::s_id_(-2);
-
 int64_t Block::s_GenerateId()
 {
 	s_id_ += 1;
 	return s_id_;
 }
+
+int64_t Block::s_id_ = -2;
 
 #endif

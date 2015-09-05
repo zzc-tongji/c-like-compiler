@@ -4,8 +4,10 @@
 #pragma warning(disable:4996)
 
 #include <stdint.h>
+#include <exception>
 #include "block.h"
 #include "variable_item.h"
+#include "word.h"
 
 class FunctionItem
 {
@@ -23,6 +25,7 @@ public:
 	// information
 	int64_t return_type_;
 	std::vector<VariableItem> parameter_table_;
+	Word word_header;
 };
 
 FunctionItem::FunctionItem()
@@ -50,9 +53,14 @@ FunctionItem::~FunctionItem()
 
 int64_t FunctionItem::SetName(const char * name)
 {
-	if (NULL == name)
+	if (NULL == name || "" == name)
 	{
-		return 0;
+		throw std::exception("Function \"int64_t FunctionItem::SetName(const char * name)\" says: Invalid parameter \"name\".");
+	}
+	if (name_ != NULL)
+	{
+		delete[] name_;
+		name_ = NULL;
 	}
 	name_ = new char[strlen(name) + 1];
 	if (NULL == name_)

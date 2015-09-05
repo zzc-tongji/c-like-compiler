@@ -12,12 +12,13 @@ public:
 	const int64_t c_double_ = 2;
 	VariableItem();
 	~VariableItem();
-	void * MallocName(int64_t name_size);
-	void * MallocGlobalName(int64_t global_name_size);
+	int64_t SetName(const char * name);
+	int64_t SetGlobalName(const char * global_name);
 	// information
 	char * name_;
 	char * global_name_;
 	int64_t type_;
+	int64_t array_number_; // variable - 0, array - actual length
 };
 
 VariableItem::VariableItem()
@@ -25,6 +26,7 @@ VariableItem::VariableItem()
 	name_ = NULL;
 	global_name_ = NULL;
 	type_ = c_void_;
+	array_number_ = -1;
 }
 
 VariableItem::~VariableItem()
@@ -41,26 +43,44 @@ VariableItem::~VariableItem()
 	}
 }
 
-void * VariableItem::MallocName(int64_t name_size)
+int64_t VariableItem::SetName(const char * name)
 {
+	if (NULL == name || "" == name)
+	{
+		throw std::exception("Function \"int64_t VariableItem::SetName(const char * name)\" says: Invalid parameter \"name\".");
+	}
 	if (name_ != NULL)
 	{
 		delete[] name_;
 		name_ = NULL;
 	}
-	name_ = new char[name_size];
-	return name_;
+	name_ = new char[strlen(name) + 1];
+	if (NULL == name_)
+	{
+		return -1;
+	}
+	strcpy(name_, name);
+	return 1;
 }
 
-void * VariableItem::MallocGlobalName(int64_t global_name_size)
+int64_t VariableItem::SetGlobalName(const char * global_name)
 {
+	if (NULL == global_name || "" == global_name)
+	{
+		throw std::exception("Function \"int64_t SetGlobalName(const char * global_name)\" says: Invalid parameter \"global_name\".");
+	}
 	if (global_name_ != NULL)
 	{
 		delete[] global_name_;
 		global_name_ = NULL;
 	}
-	global_name_ = new char[global_name_size];
-	return global_name_;
+	global_name_ = new char[strlen(global_name) + 1];
+	if (NULL == global_name_)
+	{
+		return -1;
+	}
+	strcpy(global_name_, global_name);
+	return 1;
 }
 
 #endif

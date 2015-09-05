@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <vector>
+#include <exception>
 
 class SourceFile
 {
@@ -12,7 +13,7 @@ public:
 	void * Malloc(int64_t size);
 	void Free();
 	void ReadyToMove();
-	int64_t JumpTo(int64_t location);
+	void JumpTo(int64_t location);
 	int64_t MoveNext();
 	// content
 	char * content_;
@@ -36,6 +37,14 @@ private:
 SourceFile::SourceFile()
 {
 	content_ = NULL;
+	content_size_ = 0;
+	index_ = -1;
+	line_size_ = 0;
+	line_index_ = -1;
+	line_ = -1;
+	annotation_size_ = -1;
+	annotation_index_ = -2;
+	annotation_ = false;
 	move_enabled_ = false;
 }
 
@@ -46,6 +55,10 @@ SourceFile::~SourceFile()
 
 void * SourceFile::Malloc(int64_t size)
 {
+	if (size <= 0)
+	{
+		throw std::exception("Function \"void * SourceFile::Malloc(int64_t size)\" says: Invalid parameter \"size\".");
+	}
 	Free();
 	content_ = new char[size];
 	return content_;
@@ -68,15 +81,15 @@ void SourceFile::ReadyToMove()
 	JumpTo(0);
 }
 
-int64_t SourceFile::JumpTo(int64_t location)
+void SourceFile::JumpTo(int64_t location)
 {
 	if (false == move_enabled_)
 	{
-		return -1;
+		throw std::exception("Function \"void * SourceFile::Malloc(int64_t size)\" says: You should call function \"void SourceFile::ReadyToMove()\" first.");
 	}
 	if (location < 0 || location > content_size_ - 1)
 	{
-		return 0;
+		throw std::exception("Function \"void * SourceFile::Malloc(int64_t size)\" says: Invalid parameter \"size\".");
 	}
 	// content index
 	index_ = location;
@@ -134,14 +147,13 @@ int64_t SourceFile::JumpTo(int64_t location)
 			annotation_ = false;
 		}
 	}
-	return 1;
 }
 
 int64_t SourceFile::MoveNext()
 {
 	if (false == move_enabled_)
 	{
-		return -1;
+		throw std::exception("Function \"int64_t SourceFile::MoveNext()\" says: You should call function \"void SourceFile::ReadyToMove()\" first.");
 	}
 	if (index_ == content_size_ - 1)
 	{

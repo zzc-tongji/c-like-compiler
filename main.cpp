@@ -7,6 +7,7 @@
 #include "error.h"
 #include "function_item.h"
 #include "block.h"
+#include "word.h"
 
 int64_t ReadSourceFile(const char * path, SourceFile * source_file_p, Error * error_p);
 int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem> * function_table_p);
@@ -23,13 +24,13 @@ int main(int argc, char ** argv)
 
 	if (-1 == ReadSourceFile(path, &source_file, &error))
 	{
-		printf("%s\n", error.get_error_string_());
+		printf("%s\n", error.GetErrorString(&source_file));
 		system("PAUSE");
 		return 0;
 	}
 	if (-1 == Preprocess(&source_file, &error, &function_table))
 	{
-		printf("%s\n", error.get_error_string_());
+		printf("%s\n", error.GetErrorString(&source_file));
 		system("PAUSE");
 		return 0;
 	}
@@ -45,7 +46,7 @@ int main(int argc, char ** argv)
 			{
 				system("PAUSE");
 			}
-		} while (source_file.MoveNext() == 1);
+		} while (1 == source_file.MoveNext());
 	}
 
 	system("PAUSE");
@@ -61,7 +62,6 @@ int64_t ReadSourceFile(const char * path, SourceFile * source_file_p, Error * er
 	{
 		error_p->major_no_ = 0;
 		error_p->minor_no_ = 0;
-		fp = NULL;
 		return -1;
 	}
 	// get file size
@@ -76,13 +76,13 @@ int64_t ReadSourceFile(const char * path, SourceFile * source_file_p, Error * er
 	fseek(fp, 0, SEEK_SET);
 	// malloc
 	source_file_p->Malloc(source_file_p->content_size_ + 1);
-	source_file_p->content_[source_file_p->content_size_] = '\0';
 	if (NULL == source_file_p->content_)
 	{
 		error_p->major_no_ = 0;
 		error_p->minor_no_ = 2;
 		return -1;
 	}
+	source_file_p->content_[source_file_p->content_size_] = '\0';
 	// read file
 	for (int64_t offset = 0, length = 0, remain = source_file_p->content_size_; remain > 0;)
 	{
@@ -191,7 +191,6 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 				{
 					error_p->major_no_ = 1;
 					error_p->minor_no_ = 0;
-					error_p->line_no_ = source_file_p->line_table_.size() - 1;
 					return -1;
 				}
 				annotation.pop_back();
@@ -219,7 +218,6 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 			{
 				error_p->major_no_ = 1;
 				error_p->minor_no_ = 1;
-				error_p->line_no_ = source_file_p->line_table_.size() - 1;
 				return -1;
 			}
 			parenthesis.pop_back();
@@ -240,7 +238,6 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 			{
 				error_p->major_no_ = 1;
 				error_p->minor_no_ = 2;
-				error_p->line_no_ = source_file_p->line_table_.size() - 1;
 				return -1;
 			}
 			bracket.pop_back();
@@ -257,12 +254,18 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 			{
 				error_p->major_no_ = 1;
 				error_p->minor_no_ = 4;
-				error_p->line_no_ = source_file_p->line_table_.size() - 1;
 				// free
 				Block::s_FreeAll(block_root);
 				return -1;
 			}
-			block_next_p->SetName();
+			if (-1 == block_next_p->SetName())
+			{
+				error_p->major_no_ = 1;
+				error_p->minor_no_ = 4;
+				// free
+				Block::s_FreeAll(block_root);
+				return -1;
+			}
 			block_next_p->beginning_ = source_file_p->index_;
 			block_p = block_next_p;
 			break;
@@ -275,7 +278,6 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 			{
 				error_p->major_no_ = 1;
 				error_p->minor_no_ = 3;
-				error_p->line_no_ = source_file_p->line_table_.size() - 1;
 				// free
 				Block::s_FreeAll(block_root);
 				return -1;
@@ -291,7 +293,6 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 				(*function_table_p)[function_table_p->size() - 1].end_ = source_file_p->index_;
 				function_table_p->push_back(FunctionItem());
 				(*function_table_p)[function_table_p->size() - 1].beginning_ = source_file_p->index_ + 1;
-
 			}
 			break;
 		default:
@@ -308,21 +309,18 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 	{
 		error_p->major_no_ = 1;
 		error_p->minor_no_ = 1;
-		error_p->line_no_ = source_file_p->line_table_.size() - 1;
 		return -1;
 	}
 	if (false == bracket.empty())
 	{
 		error_p->major_no_ = 1;
 		error_p->minor_no_ = 2;
-		error_p->line_no_ = source_file_p->line_table_.size() - 1;
 		return -1;
 	}
 	if (false == brace.empty())
 	{
 		error_p->major_no_ = 1;
 		error_p->minor_no_ = 3;
-		error_p->line_no_ = source_file_p->line_table_.size() - 1;
 		// free
 		Block::s_FreeAll(block_root);
 		return -1;
@@ -331,7 +329,6 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 	{
 		error_p->major_no_ = 1;
 		error_p->minor_no_ = 0;
-		error_p->line_no_ = source_file_p->line_table_.size() - 1;
 		return -1;
 	}
 	// link functions with blocks
