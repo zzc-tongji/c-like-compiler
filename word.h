@@ -9,12 +9,12 @@
 class Word
 {
 public:
-	const int64_t c_keyword_ = 0;
-	const int64_t c_identifier_ = 1;
-	const int64_t c_constant_int_ = 2;
-	const int64_t c_constant_double_ = 3;
-	const int64_t c_operator_ = 4;
-	const int64_t c_delimiter_ = 5;
+	const static int64_t c_keyword_ = 0;
+	const static int64_t c_identifier_ = 1;
+	const static int64_t c_constant_int_ = 2;
+	const static int64_t c_constant_double_ = 3;
+	const static int64_t c_operator_ = 4;
+	const static int64_t c_separator_ = 5;
 	static Word * s_Insert(Word * it_next);
 	static void s_Remove(Word * it_self);
 	static int64_t s_MoveBufferIndex(bool offset, int64_t number);
@@ -32,6 +32,7 @@ public:
 	// information
 	char * content_;
 	int64_t type_;
+	int64_t source_file_index_;
 };
 
 Word * Word::s_Insert(Word * it_next)
@@ -129,6 +130,7 @@ Word::Word()
 	next_ = NULL;
 	content_ = NULL;
 	type_ = -1;
+	source_file_index_ = -1;
 }
 
 Word::~Word()

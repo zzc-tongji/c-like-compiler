@@ -7,9 +7,11 @@
 class VariableItem
 {
 public:
-	const int64_t c_void_ = 0; // use for functions which returns "void" and blocks
-	const int64_t c_int_ = 1;
-	const int64_t c_double_ = 2;
+	const static int64_t c_void_ = 0; // use for functions which returns "void" and blocks
+	const static int64_t c_int_ = 1;
+	const static int64_t c_double_ = 2;
+	const static int64_t c_int_temp_ = 3;
+	const static int64_t c_double_temp_ = 4;
 	VariableItem();
 	~VariableItem();
 	int64_t SetName(const char * name);

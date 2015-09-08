@@ -71,6 +71,15 @@ char * Error::GetErrorString(SourceFile * source_file_p)
 	case 0x1004:
 		sprintf(error_string_, "[0x%04I64X] Fail to acquire enough memory.", error_no_);
 		break;
+	case 0x2001:
+		sprintf(error_string_, "[0x%04I64X] {Line: %I64d, offset: %I64d} Can not identify the word.", error_no_, display_line_, display_offset_);
+		break;
+	case 0x2002:
+		sprintf(error_string_, "[0x%04I64X] {Line: %I64d, offset: %I64d} There is an illegal character.", error_no_, display_line_, display_offset_);
+		break;
+	case 0x2003:
+		sprintf(error_string_, "[0x%04I64X] Fail to acquire enough memory.", error_no_);
+		break;
 	default:
 		error_string_[0] = '\0';
 		break;
