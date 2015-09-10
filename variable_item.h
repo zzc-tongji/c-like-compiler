@@ -1,6 +1,7 @@
 #ifndef VARIABLE_ITEM_H_
 #define VARIABLE_ITEM_H_
 
+#include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 

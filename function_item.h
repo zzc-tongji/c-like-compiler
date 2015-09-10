@@ -3,6 +3,7 @@
 
 #pragma warning(disable:4996)
 
+#include <stdlib.h>
 #include <stdint.h>
 #include <exception>
 #include "block.h"
@@ -25,7 +26,7 @@ public:
 	// information
 	int64_t return_type_;
 	std::vector<VariableItem> parameter_table_;
-	Word word_header;
+	Word word_header; // It is a linked list.
 };
 
 FunctionItem::FunctionItem()

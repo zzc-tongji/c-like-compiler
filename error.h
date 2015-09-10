@@ -1,6 +1,7 @@
 #ifndef ERROR_H_
 #define ERROR_H_
 
+#include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <exception>

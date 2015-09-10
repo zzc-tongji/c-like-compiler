@@ -3,6 +3,7 @@
 
 #pragma warning(disable:4996)
 
+#include <stdlib.h>
 #include <stdint.h>
 #include <vector>
 
@@ -83,15 +84,12 @@ std::vector<char *> Word::s_keyword_table_ =
 {
 	"void",
 	"int",
-	"double",
 	"if",
 	"else",
 	"while",
 	"return",
-	"inputi",
-	"inputd",
-	"outputi",
-	"outputd"
+	"input",
+	"output"
 };
 
 int64_t Word::s_MoveBufferIndex(bool offset, int64_t number)

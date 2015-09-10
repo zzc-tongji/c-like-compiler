@@ -1,6 +1,7 @@
 #ifndef SOURCE_FILE_H_
 #define SOURCE_FILE_H_
 
+#include <stdlib.h>
 #include <stdint.h>
 #include <vector>
 #include <exception>

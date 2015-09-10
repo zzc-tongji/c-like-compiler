@@ -16,7 +16,7 @@
 
 int64_t ReadSourceFile(const char * path, SourceFile * source_file_p, Error * error_p);
 int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem> * function_table_p, std::vector<Block *> * block_pointer_table);
-int64_t Lex(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer);
+int64_t LexicalAnalyse(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer);
 
 int main(int argc, char ** argv)
 {
@@ -61,7 +61,7 @@ int main(int argc, char ** argv)
 #endif
 	for (int64_t i = 0; i < function_table.size(); ++i)
 	{
-		if (-1 == Lex(&source_file, &error, &block_pointer_table, false, &(function_table[i])))
+		if (-1 == LexicalAnalyse(&source_file, &error, &block_pointer_table, false, &(function_table[i])))
 		{
 			printf("%s\n", error.GetErrorString(&source_file));
 			system("PAUSE");
@@ -70,7 +70,7 @@ int main(int argc, char ** argv)
 	}
 	for (int64_t i = 0; i < block_pointer_table.size(); ++i)
 	{
-		if (-1 == Lex(&source_file, &error, &block_pointer_table, true, block_pointer_table[i]))
+		if (-1 == LexicalAnalyse(&source_file, &error, &block_pointer_table, true, block_pointer_table[i]))
 		{
 			printf("%s\n", error.GetErrorString(&source_file));
 			system("PAUSE");
@@ -487,29 +487,30 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 	return 1;
 }
 
-int64_t Lex(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer)
+int64_t LexicalAnalyse(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer)
 {
 	if (NULL == source_file_p)
 	{
-		throw std::exception("Function \"int64_t Lex(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer)\" says: Invalid parameter \"source_file_p\".");
+		throw std::exception("Function \"int64_t LexicalAnalyse(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer)\" says: Invalid parameter \"source_file_p\".");
 	}
 	if (NULL == error_p)
 	{
-		throw std::exception("Function \"int64_t Lex(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer)\" says: Invalid parameter \"error_p\".");
+		throw std::exception("Function \"int64_t LexicalAnalyse(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer)\" says: Invalid parameter \"error_p\".");
 	}
 	if (NULL == block_pointer_table_p)
 	{
-		throw std::exception("Function \"int64_t Lex(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer)\" says: Invalid parameter \"block_pointer_table_p\".");
+		throw std::exception("Function \"int64_t LexicalAnalyse(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer)\" says: Invalid parameter \"block_pointer_table_p\".");
 	}
 	if (NULL == block_pointer_table_p)
 	{
-		throw std::exception("Function \"int64_t Lex(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer)\" says: Invalid parameter \"pointer\".");
+		throw std::exception("Function \"int64_t LexicalAnalyse(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer)\" says: Invalid parameter \"pointer\".");
 	}
 	FunctionItem * function_item_p;
 	Block * block_p;
 	Word * word_previous_p;
 	Word * word_p;
 	int64_t end;
+	int64_t block_level;
 	if (is_block)
 	{
 		// block
@@ -519,6 +520,7 @@ int64_t Lex(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * 
 		word_p = &(block_p->word_header);
 		source_file_p->JumpTo(block_p->beginning_);
 		end = block_p->end_;
+		block_level = 0;
 	}
 	else
 	{
@@ -528,11 +530,11 @@ int64_t Lex(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * 
 		word_previous_p = function_item_p->word_header.previous_;
 		word_p = &(function_item_p->word_header);
 		source_file_p->JumpTo(function_item_p->beginning_);
-		end = function_item_p->block_tree->beginning_ - 1;
+		end = function_item_p->end_;
+		block_level = 1;
 	}
 	int64_t status = 0;
 	char ch = source_file_p->content_[source_file_p->index_];
-	int64_t block_level = 0;
 	while (source_file_p->index_ <= end)
 	{
 		// annotation
@@ -544,11 +546,10 @@ int64_t Lex(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * 
 			ch = source_file_p->content_[source_file_p->index_];
 			continue;
 		}
-		// code
 		switch (status)
 		{
 		case 0:
-			if ((ch >= '0' && ch <= '9') || '.' == ch)
+			if (ch >= '0' && ch <= '9')
 			{
 				if ('0' == ch)
 				{
@@ -556,12 +557,7 @@ int64_t Lex(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * 
 					Word::s_buffer_[Word::s_buffer_index_] = ch;
 					Word::s_MoveBufferIndex(true, 1);
 					// set status
-					status = 104;
-				}
-				else if ('.' == ch)
-				{
-					// set status (error)
-					status = 599;
+					status = 199;
 				}
 				else
 				{
@@ -584,71 +580,34 @@ int64_t Lex(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * 
 			{
 				switch (ch)
 				{
-				case '[':
-				case ']':
-				case '(':
-				case ')':
 				case '-':
-				case '~':
-				case '*':
-				case '/':
-				case '%':
-				case '+':
-				case '^':
-					// read a char
-					Word::s_buffer_[Word::s_buffer_index_] = ch;
-					Word::s_MoveBufferIndex(true, 1);
-					// set status
-					status = 399;
-					break;
-				case '$':
 					// read a char
 					Word::s_buffer_[Word::s_buffer_index_] = ch;
 					Word::s_MoveBufferIndex(true, 1);
 					// set status
 					status = 301;
 					break;
+				case '(':
+				case ')':
 				case '!':
-					// read a char
-					Word::s_buffer_[Word::s_buffer_index_] = ch;
-					Word::s_MoveBufferIndex(true, 1);
-					// set status
-					status = 308;
-					break;
+				case '*':
+				case '/':
+				case '%':
+				case '+':
 				case '<':
-					// read a char
-					Word::s_buffer_[Word::s_buffer_index_] = ch;
-					Word::s_MoveBufferIndex(true, 1);
-					// set status
-					status = 309;
-					break;
 				case '>':
 					// read a char
 					Word::s_buffer_[Word::s_buffer_index_] = ch;
 					Word::s_MoveBufferIndex(true, 1);
 					// set status
-					status = 310;
+					status = 399;
 					break;
 				case '=':
 					// read a char
 					Word::s_buffer_[Word::s_buffer_index_] = ch;
 					Word::s_MoveBufferIndex(true, 1);
 					// set status
-					status = 312;
-					break;
-				case '&':
-					// read a char
-					Word::s_buffer_[Word::s_buffer_index_] = ch;
-					Word::s_MoveBufferIndex(true, 1);
-					// set status
-					status = 313;
-					break;
-				case '|':
-					// read a char
-					Word::s_buffer_[Word::s_buffer_index_] = ch;
-					Word::s_MoveBufferIndex(true, 1);
-					// set status
-					status = 314;
+					status = 302;
 					break;
 				case ' ':
 				case '\t':
@@ -708,65 +667,6 @@ int64_t Lex(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * 
 				// set status
 				status = 101;
 			}
-			else if ('.' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 102;
-			}
-			else
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 198;
-			}
-			break;
-		case 102:
-			if (ch >= '0' && ch <= '9')
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 103;
-			}
-			else
-			{
-				// set status (error)
-				status = 599;
-			}
-			break;
-		case 103:
-			if (ch >= '0' && ch <= '9')
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 103;
-			}
-			else
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 199;
-			}
-			break;
-		case 104:
-			if ('.' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 102;
-			}
 			else
 			{
 				// read a char
@@ -792,7 +692,7 @@ int64_t Lex(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * 
 			{
 				// set word
 				word_p->SetContent(Word::s_buffer_);
-				word_p->type_ = Word::c_constant_int_;
+				word_p->type_ = Word::c_constant_double_;
 				word_p->source_file_index_ = source_file_p->index_;
 				// reset global buffer
 				Word::s_MoveBufferIndex(false, 0);
@@ -801,9 +701,6 @@ int64_t Lex(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * 
 			}
 			break;
 		case 199:
-			// fallback a char
-			Word::s_MoveBufferIndex(true, -1);
-			source_file_p->JumpTo(source_file_p->index_ - 1);
 			// add a word
 			word_previous_p = word_p;
 			word_p = Word::s_Insert(word_previous_p);
@@ -874,244 +771,25 @@ int64_t Lex(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * 
 			}
 			break;
 		case 301:
-			if ('i' == ch)
+			if (ch >= '1' && ch <= '9')
 			{
 				// read a char
 				Word::s_buffer_[Word::s_buffer_index_] = ch;
 				Word::s_MoveBufferIndex(true, 1);
 				// set status
-				status = 302;
-			}
-			else if ('d' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 305;
+				status = 101;
 			}
 			else
 			{
-				// set status (error)
-				status = 599;
+				// read a char
+				Word::s_buffer_[Word::s_buffer_index_] = ch;
+				Word::s_MoveBufferIndex(true, 1);
+				// set status
+				status = 398;
 			}
 			break;
 		case 302:
-			if ('2' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 303;
-			}
-			else
-			{
-				// set status (error)
-				status = 599;
-			}
-			break;
-		case 303:
-			if ('d' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 304;
-			}
-			else
-			{
-				// set status (error)
-				status = 599;
-			}
-			break;
-		case 304:
-			if ('$' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 399;
-			}
-			else
-			{
-				// set status (error)
-				status = 599;
-			}
-			break;
-		case 305:
-			if ('2' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 306;
-			}
-			else
-			{
-				// set status (error)
-				status = 599;
-			}
-			break;
-		case 306:
-			if ('i' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 307;
-			}
-			else
-			{
-				// set status (error)
-				status = 599;
-			}
-			break;
-		case 307:
-			if ('$' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 399;
-			}
-			else
-			{
-				// set status (error)
-				status = 599;
-			}
-			break;
-		case 308:
 			if ('=' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 399;
-			}
-			else
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 398;
-			}
-			break;
-		case 309:
-			if ('<' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 399;
-			}
-			else if ('=' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 399;
-			}
-			else
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 398;
-			}
-			break;
-		case 310:
-			if ('>' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 311;
-			}
-			else if ('=' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 399;
-			}
-			else
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 398;
-			}
-			break;
-		case 311:
-			if ('>' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 399;
-			}
-			else
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 398;
-			}
-			break;
-		case 312:
-			if ('=' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 399;
-			}
-			else
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 398;
-			}
-			break;
-		case 313:
-			if ('&' == ch)
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 399;
-			}
-			else
-			{
-				// read a char
-				Word::s_buffer_[Word::s_buffer_index_] = ch;
-				Word::s_MoveBufferIndex(true, 1);
-				// set status
-				status = 398;
-			}
-			break;
-		case 314:
-			if ('|' == ch)
 			{
 				// read a char
 				Word::s_buffer_[Word::s_buffer_index_] = ch;
@@ -1210,6 +888,7 @@ int64_t Lex(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * 
 			error_p->minor_no_ = 1;
 			return -1;
 		default:
+			throw std::exception("Function \"int64_t LexicalAnalyse(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer)\" says: Invalid variable \"status\".");
 			break;
 		}
 		if (status != 198 && status != 199 && status != 299 && status != 398 && status != 399 && status != 499)
