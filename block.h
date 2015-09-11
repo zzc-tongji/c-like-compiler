@@ -18,6 +18,7 @@ class Block
 public:
 	static void s_FreeAll(Block * block);
 	Block();
+	~Block();
 	Block * AddChild();
 	void FreeAll();
 	int64_t SetName();
@@ -68,6 +69,30 @@ Block::Block()
 	name_in_ = NULL;
 	name_out_ = NULL;
 	label_id_now_ = -1;
+}
+
+Block::~Block()
+{
+	if (name_ != NULL)
+	{
+		delete[] name_;
+		name_ = NULL;
+	}
+	if (name_in_ != NULL)
+	{
+		delete[] name_in_;
+		name_in_ = NULL;
+	}
+	if (name_out_ != NULL)
+	{
+		delete[] name_out_;
+		name_out_ = NULL;
+	}
+	for (int64_t i = 0; i < variable_table_.size(); ++i)
+	{
+		VariableItem::s_Free(variable_table_[i]);
+		variable_table_[i] = NULL;
+	}
 }
 
 Block * Block::AddChild()
@@ -129,7 +154,7 @@ int64_t Block::SetName()
 		delete[] name_;
 		name_ = NULL;
 	}
-	name_ = new char(8 + int64_t(log10(double(id_))));
+	name_ = new char[8 + int64_t(log10(double(id_)))];
 	if (NULL == name_)
 	{
 		return -1;
@@ -141,7 +166,7 @@ int64_t Block::SetName()
 		delete[] name_in_;
 		name_in_ = NULL;
 	}
-	name_in_ = new char(11 + int64_t(log10(double(id_))));
+	name_in_ = new char[11 + int64_t(log10(double(id_)))];
 	if (NULL == name_in_)
 	{
 		return -1;
@@ -153,7 +178,7 @@ int64_t Block::SetName()
 		delete[] name_out_;
 		name_out_ = NULL;
 	}
-	name_out_ = new char(12 + int64_t(log10(double(id_))));
+	name_out_ = new char[12 + int64_t(log10(double(id_)))];
 	if (NULL == name_out_)
 	{
 		return -1;

@@ -65,6 +65,11 @@ FunctionItem::~FunctionItem()
 		Block::s_FreeAll(block_tree);
 		block_tree = NULL;
 	}
+	for (int64_t i = 0; i < parameter_table_.size(); ++i)
+	{
+		VariableItem::s_Free(parameter_table_[i]);
+		parameter_table_[i] = NULL;
+	}
 }
 
 int64_t FunctionItem::SetName(const char * name)
