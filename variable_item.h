@@ -21,15 +21,15 @@ public:
 	char * name_;
 	char * global_name_;
 	int64_t type_;
-	int64_t array_number_; // variable - 0, array - actual length
+	int64_t stack_offset;
 };
 
 VariableItem::VariableItem()
 {
 	name_ = NULL;
 	global_name_ = NULL;
-	type_ = c_void_;
-	array_number_ = -1;
+	type_ = -1;
+	stack_offset = -1;
 }
 
 VariableItem::~VariableItem()

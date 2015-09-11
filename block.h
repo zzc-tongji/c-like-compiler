@@ -3,6 +3,7 @@
 
 #pragma warning(disable:4996)
 
+#include <stdlib.h>
 #include <stdint.h>
 #include <math.h>
 #include <vector>
@@ -20,6 +21,7 @@ public:
 	Block * AddChild();
 	void FreeAll();
 	int64_t SetName();
+	char * GeneratLabelName();
 	// location
 	int64_t beginning_;
 	int64_t end_;
@@ -34,8 +36,9 @@ public:
 	char * name_in_;
 	char * name_out_;
 	// information
-	std::vector<VariableItem> variable_table_;
-	Word word_header;
+	std::vector<VariableItem *> variable_table_;
+	Word word_header; // It is a linked list.
+	int64_t label_id_now_;
 private:
 	// id allocator
 	static int64_t s_GenerateId();
@@ -64,6 +67,7 @@ Block::Block()
 	name_ = NULL;
 	name_in_ = NULL;
 	name_out_ = NULL;
+	label_id_now_ = -1;
 }
 
 Block * Block::AddChild()
@@ -156,6 +160,20 @@ int64_t Block::SetName()
 	}
 	sprintf(name_out_, "block_%I64d_out", id_);
 	return 1;
+}
+
+char * Block::GeneratLabelName()
+{
+	// The returned value point to a block of dynamically allocated memory. It should be reclaim after using.
+	char * value;
+	label_id_now_ += 1;
+	value = new char[strlen(name_) + int64_t(log10(double(label_id_now_))) + 8];
+	if (NULL == value)
+	{
+		return NULL;
+	}
+	sprintf(value, "%s_label_%I64d", name_, label_id_now_);
+	return value;
 }
 
 int64_t Block::s_GenerateId()

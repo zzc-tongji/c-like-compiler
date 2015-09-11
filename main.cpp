@@ -7,6 +7,7 @@
 #include "source_file.h"
 #include "error.h"
 #include "function_item.h"
+#include "annotation_item.h"
 #include "block.h"
 #include "word.h"
 
@@ -15,7 +16,7 @@
 //#define TEST_BLOCK_3
 
 int64_t ReadSourceFile(const char * path, SourceFile * source_file_p, Error * error_p);
-int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem> * function_table_p, std::vector<Block *> * block_pointer_table);
+int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem *> * function_table_p, std::vector<Block *> * block_table);
 int64_t LexicalAnalyse(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer);
 
 int main(int argc, char ** argv)
@@ -23,8 +24,8 @@ int main(int argc, char ** argv)
 	char path[1024];
 	SourceFile source_file;
 	Error error;
-	std::vector<FunctionItem> function_table;
-	std::vector<Block *> block_pointer_table;
+	std::vector<FunctionItem *> function_table;
+	std::vector<Block *> block_table;
 
 	// test file
 	strcpy(path, "example.c.test");
@@ -35,7 +36,7 @@ int main(int argc, char ** argv)
 		system("PAUSE");
 		return 0;
 	}
-	if (-1 == Preprocess(&source_file, &error, &function_table, &block_pointer_table))
+	if (-1 == Preprocess(&source_file, &error, &function_table, &block_table))
 	{
 		printf("%s\n", error.GetErrorString(&source_file));
 		system("PAUSE");
@@ -61,16 +62,16 @@ int main(int argc, char ** argv)
 #endif
 	for (int64_t i = 0; i < function_table.size(); ++i)
 	{
-		if (-1 == LexicalAnalyse(&source_file, &error, &block_pointer_table, false, &(function_table[i])))
+		if (-1 == LexicalAnalyse(&source_file, &error, &block_table, false, function_table[i]))
 		{
 			printf("%s\n", error.GetErrorString(&source_file));
 			system("PAUSE");
 			return 0;
 		}
 	}
-	for (int64_t i = 0; i < block_pointer_table.size(); ++i)
+	for (int64_t i = 0; i < block_table.size(); ++i)
 	{
-		if (-1 == LexicalAnalyse(&source_file, &error, &block_pointer_table, true, block_pointer_table[i]))
+		if (-1 == LexicalAnalyse(&source_file, &error, &block_table, true, block_table[i]))
 		{
 			printf("%s\n", error.GetErrorString(&source_file));
 			system("PAUSE");
@@ -82,10 +83,10 @@ int main(int argc, char ** argv)
 	{
 		printf("----------  test block #2: BEGIN ----------\n\n");
 		Word * word;
-		for (int64_t i = 0; i < block_pointer_table.size(); ++i)
+		for (int64_t i = 0; i < block_table.size(); ++i)
 		{
-			word = &(block_pointer_table[i]->word_header);
-			printf("# %s: BEGIN #\n", block_pointer_table[i]->name_);
+			word = &(block_table[i]->word_header);
+			printf("# %s: BEGIN #\n", block_table[i]->name_);
 			while (word != NULL)
 			{
 				if (word->content_)
@@ -94,11 +95,11 @@ int main(int argc, char ** argv)
 				}
 				word = word->next_;
 			}
-			printf("\n# %s: END #\n\n", block_pointer_table[i]->name_);
+			printf("\n# %s: END #\n\n", block_table[i]->name_);
 		}
 		for (int64_t i = 0; i < function_table.size(); ++i)
 		{
-			word = &(function_table[i].word_header);
+			word = &(function_table[i]->word_header);
 			printf("# function head %I64d: BEGIN #\n", i);
 			while (word != NULL)
 			{
@@ -120,10 +121,10 @@ int main(int argc, char ** argv)
 		printf("----------  test block #3: BEGIN ----------\n\n");
 		Word * word;
 		int64_t counter = 0;
-		for (int64_t i = 0; i < block_pointer_table.size(); ++i)
+		for (int64_t i = 0; i < function_table.size(); ++i)
 		{
-			word = &(block_pointer_table[i]->word_header);
-			printf("# %s: BEGIN #\n", block_pointer_table[i]->name_);
+			word = &(function_table[i]->word_header);
+			printf("# function: BEGIN #\n");
 			while (word != NULL)
 			{
 				printf("{\n");
@@ -141,13 +142,45 @@ int main(int argc, char ** argv)
 				}
 				word = word->next_;
 			}
-			printf("\n# %s: END #\n\n", block_pointer_table[i]->name_);
+			printf("\n# function: END #\n\n");
+			system("PAUSE");
+			counter = 0;
+		}
+		for (int64_t i = 0; i < block_table.size(); ++i)
+		{
+			word = &(block_table[i]->word_header);
+			printf("# %s: BEGIN #\n", block_table[i]->name_);
+			while (word != NULL)
+			{
+				printf("{\n");
+				if (word->content_)
+				{
+					printf("\tcontent:           %s\n", word->content_);
+				}
+				printf("\ttype:              %I64d\n", word->type_);
+				printf("\tsource_file_index: %I64d\n", word->source_file_index_);
+				printf("}\n");
+				counter += 1;
+				if (counter % 50 == 0)
+				{
+					system("PAUSE");
+				}
+				word = word->next_;
+			}
+			printf("\n# %s: END #\n\n", block_table[i]->name_);
 			system("PAUSE");
 			counter = 0;
 		}
 		printf("----------  test block #3: END ----------\n\n");
 	}
 #endif
+	// reclaim memory
+	for (int64_t i = 0; i < function_table.size(); ++i)
+	{
+		FunctionItem::s_Free(function_table[i]);
+		function_table[i] = NULL;
+	}
+	// Do not reclaim memory in "block_table"! They have been reclaimed already.
 	system("PAUSE");
 	return 0;
 }
@@ -217,31 +250,33 @@ int64_t ReadSourceFile(const char * path, SourceFile * source_file_p, Error * er
 	return 1;
 }
 
-int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem> * function_table_p, std::vector<Block *> * block_pointer_table)
+int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem *> * function_table_p, std::vector<Block *> * block_table)
 {
 	if (NULL == source_file_p)
 	{
-		throw std::exception("Function \"int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem> * function_table_p, std::vector<Block *> * block_pointer_table)\" says: Invalid parameter \"source_file_p\".");
+		throw std::exception("Function \"int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem> * function_table_p, std::vector<Block *> * block_table)\" says: Invalid parameter \"source_file_p\".");
 	}
 	if (NULL == error_p)
 	{
-		throw std::exception("Function \"int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem> * function_table_p, std::vector<Block *> * block_pointer_table)\" says: Invalid parameter \"error_p\".");
+		throw std::exception("Function \"int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem> * function_table_p, std::vector<Block *> * block_table)\" says: Invalid parameter \"error_p\".");
 	}
 	if (NULL == function_table_p)
 	{
-		throw std::exception("Function \"int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem> * function_table_p, std::vector<Block *> * block_pointer_table)\" says: Invalid parameter \"function_table_p\".");
+		throw std::exception("Function \"int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem> * function_table_p, std::vector<Block *> * block_table)\" says: Invalid parameter \"function_table_p\".");
 	}
-	if (NULL == block_pointer_table)
+	if (NULL == block_table)
 	{
-		throw std::exception("Function \"int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem> * function_table_p, std::vector<Block *> * block_pointer_table)\" says: Invalid parameter \"block_pointer_table\".");
+		throw std::exception("Function \"int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem> * function_table_p, std::vector<Block *> * block_table)\" says: Invalid parameter \"block_table\".");
 	}
+	// pointer
+	FunctionItem * function_item_pointer = NULL;
 	// stack of '(', '[', '{' and '@' (annotation)
 	std::vector<char> parenthesis;
 	std::vector<char> bracket;
 	std::vector<char> brace;
 	std::vector<char> annotation;
-	// pair
-	std::pair<int64_t, int64_t> annotation_item;
+	// pointer
+	AnnotationItem * annotation_item_pointer = NULL;
 	// block
 	Block * block_root;
 	Block * block_p;
@@ -249,8 +284,9 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 	// line: The first line must be at the beginning of the source file.
 	source_file_p->line_table_.push_back(0);
 	// function: The first function must be at the beginning of the source file. If not, there must be an function format error. This type of error will be checked out behind.
-	function_table_p->push_back(FunctionItem());
-	(*function_table_p)[function_table_p->size() - 1].beginning_ = 0;
+	function_table_p->push_back(function_item_pointer);
+	(*function_table_p)[function_table_p->size() - 1] = FunctionItem::s_Malloc();
+	(*function_table_p)[function_table_p->size() - 1]->beginning_ = 0;
 	// block
 	block_root = new Block();
 	block_p = block_root;
@@ -304,8 +340,10 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 				// annotation beginning: /*
 				annotation.push_back('@');
 				source_file_p->annotation_ = true;
-				// fill in vector "annotation" (1)
-				annotation_item.first = source_file_p->index_;
+				// fill in vector "annotation_table" (1)
+				source_file_p->annotation_table_.push_back(annotation_item_pointer);
+				source_file_p->annotation_table_[source_file_p->annotation_table_.size() - 1] = AnnotationItem::s_Malloc();
+				source_file_p->annotation_table_[source_file_p->annotation_table_.size() - 1]->beginning_ = source_file_p->index_;
 				// skip the next character
 				source_file_p->index_ += 1;
 			}
@@ -322,9 +360,8 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 				}
 				annotation.pop_back();
 				source_file_p->annotation_ = false;
-				// fill in vector "annotation" (2)
-				annotation_item.second = source_file_p->index_ + 1;
-				source_file_p->annotation_table_.push_back(annotation_item);
+				// fill in vector "annotation_table" (2)
+				source_file_p->annotation_table_[source_file_p->annotation_table_.size() - 1]->end_ = source_file_p->index_ + 1;
 				// skip the next character
 				source_file_p->index_ += 1;
 			}
@@ -378,7 +415,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 			// block
 			block_next_p = block_p->AddChild();
 			// block pointer table
-			block_pointer_table->push_back(block_next_p);
+			block_table->push_back(block_next_p);
 			if (NULL == block_next_p)
 			{
 				error_p->major_no_ = 1;
@@ -419,9 +456,10 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 			{
 				// Character '}' in the first level means that a function comes to an end.
 				// function
-				(*function_table_p)[function_table_p->size() - 1].end_ = source_file_p->index_;
-				function_table_p->push_back(FunctionItem());
-				(*function_table_p)[function_table_p->size() - 1].beginning_ = source_file_p->index_ + 1;
+				(*function_table_p)[function_table_p->size() - 1]->end_ = source_file_p->index_;
+				function_table_p->push_back(function_item_pointer);
+				(*function_table_p)[function_table_p->size() - 1] = FunctionItem::s_Malloc();
+				(*function_table_p)[function_table_p->size() - 1]->beginning_ = source_file_p->index_ + 1;
 			}
 			break;
 		default:
@@ -465,10 +503,10 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 	{
 		for (int64_t i = 0; i < function_table_p->size(); ++i)
 		{
-			if (block_p->end_ == (*function_table_p)[i].end_)
+			if (block_p->end_ == (*function_table_p)[i]->end_)
 			{
-				block_p->function_ = &(*function_table_p)[i];
-				(*function_table_p)[i].block_tree = block_p;
+				block_p->function_ = (*function_table_p)[i];
+				(*function_table_p)[i]->block_tree = block_p;
 				break;
 			}
 		}
@@ -476,8 +514,8 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 	// unlink function-blocks from block-root
 	for (int64_t i = 0; i < function_table_p->size(); ++i)
 	{
-		(*function_table_p)[i].block_tree->parent_ = NULL;
-		(*function_table_p)[i].block_tree->brother_ = NULL;
+		(*function_table_p)[i]->block_tree->parent_ = NULL;
+		(*function_table_p)[i]->block_tree->brother_ = NULL;
 	}
 	// delete block-root
 	delete block_root;

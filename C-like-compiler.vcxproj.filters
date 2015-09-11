@@ -37,6 +37,9 @@
     <ClInclude Include="word.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="annotation_item.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="example.c.test">
