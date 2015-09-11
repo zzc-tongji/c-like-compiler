@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <vector>
 #include <exception>
+#include "annotation_item.h"
 
 class SourceFile
 {
@@ -26,7 +27,7 @@ public:
 	int64_t line_index_;
 	int64_t line_;
 	// annotation
-	std::vector<std::pair<int64_t, int64_t>> annotation_table_;
+	std::vector<AnnotationItem *> annotation_table_;
 	int64_t annotation_size_;
 	int64_t annotation_index_;
 	bool annotation_;
@@ -52,6 +53,11 @@ SourceFile::SourceFile()
 SourceFile::~SourceFile()
 {
 	Free();
+	for (int64_t i = 0; i < annotation_table_.size(); ++i)
+	{
+		AnnotationItem::s_Free(annotation_table_[i]);
+		annotation_table_[i] = NULL;
+	}
 }
 
 void * SourceFile::Malloc(int64_t size)
@@ -121,7 +127,7 @@ void SourceFile::JumpTo(int64_t location)
 		annotation_index_ = 0;
 		for (int64_t i = 0; i < annotation_size_; ++i)
 		{
-			if (location >= annotation_table_[annotation_index_].first)
+			if (location >= annotation_table_[annotation_index_]->beginning_)
 			{
 				annotation_index_ += 1;
 			}
@@ -134,7 +140,7 @@ void SourceFile::JumpTo(int64_t location)
 		if (annotation_index_ >= 0)
 		{
 			// There is an annotation at the beginning of the source file.
-			if (location <= annotation_table_[annotation_index_].second)
+			if (location <= annotation_table_[annotation_index_]->end_)
 			{
 				annotation_ = true;
 			}
@@ -173,7 +179,7 @@ int64_t SourceFile::MoveNext()
 	{
 		if (annotation_)
 		{
-			if (index_ > annotation_table_[annotation_index_].second)
+			if (index_ > annotation_table_[annotation_index_]->end_)
 			{
 				// annotation => non-annotation
 				annotation_ = false;
@@ -181,7 +187,7 @@ int64_t SourceFile::MoveNext()
 		}
 		else
 		{
-			if (annotation_index_ + 1 < annotation_size_ && index_ >= annotation_table_[annotation_index_ + 1].first)
+			if (annotation_index_ + 1 < annotation_size_ && index_ >= annotation_table_[annotation_index_ + 1]->beginning_)
 			{
 				// non-annotation => annotation
 				annotation_index_ += 1;

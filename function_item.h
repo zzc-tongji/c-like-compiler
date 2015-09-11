@@ -13,6 +13,8 @@
 class FunctionItem
 {
 public:
+	static FunctionItem * s_Malloc();
+	static void s_Free(FunctionItem * function_item);
 	FunctionItem();
 	~FunctionItem();
 	int64_t SetName(const char * name);
@@ -25,9 +27,22 @@ public:
 	char * name_;
 	// information
 	int64_t return_type_;
-	std::vector<VariableItem> parameter_table_;
+	std::vector<VariableItem *> parameter_table_;
 	Word word_header; // It is a linked list.
 };
+
+FunctionItem * FunctionItem::s_Malloc()
+{
+	return new FunctionItem();
+}
+
+void FunctionItem::s_Free(FunctionItem * function_item)
+{
+	if (function_item != NULL)
+	{
+		delete function_item;
+	}
+}
 
 FunctionItem::FunctionItem()
 {
@@ -49,6 +64,11 @@ FunctionItem::~FunctionItem()
 	{
 		Block::s_FreeAll(block_tree);
 		block_tree = NULL;
+	}
+	for (int64_t i = 0; i < parameter_table_.size(); ++i)
+	{
+		VariableItem::s_Free(parameter_table_[i]);
+		parameter_table_[i] = NULL;
 	}
 }
 

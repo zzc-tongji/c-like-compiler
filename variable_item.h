@@ -8,6 +8,8 @@
 class VariableItem
 {
 public:
+	static VariableItem * s_Malloc();
+	static void s_Free(VariableItem * variable_item);
 	const static int64_t c_void_ = 0; // use for functions which returns "void" and blocks
 	const static int64_t c_int_ = 1;
 	const static int64_t c_double_ = 2;
@@ -21,15 +23,28 @@ public:
 	char * name_;
 	char * global_name_;
 	int64_t type_;
-	int64_t array_number_; // variable - 0, array - actual length
+	int64_t stack_offset;
 };
+
+VariableItem * VariableItem::s_Malloc()
+{
+	return new VariableItem();
+}
+
+void VariableItem::s_Free(VariableItem * variable_item)
+{
+	if (variable_item != NULL)
+	{
+		delete variable_item;
+	}
+}
 
 VariableItem::VariableItem()
 {
 	name_ = NULL;
 	global_name_ = NULL;
-	type_ = c_void_;
-	array_number_ = -1;
+	type_ = -1;
+	stack_offset = -1;
 }
 
 VariableItem::~VariableItem()

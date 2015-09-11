@@ -3,6 +3,7 @@
 
 #pragma warning(disable:4996)
 
+#include <stdlib.h>
 #include <stdint.h>
 #include <math.h>
 #include <vector>
@@ -17,9 +18,11 @@ class Block
 public:
 	static void s_FreeAll(Block * block);
 	Block();
+	~Block();
 	Block * AddChild();
 	void FreeAll();
 	int64_t SetName();
+	char * GeneratLabelName();
 	// location
 	int64_t beginning_;
 	int64_t end_;
@@ -34,8 +37,9 @@ public:
 	char * name_in_;
 	char * name_out_;
 	// information
-	std::vector<VariableItem> variable_table_;
-	Word word_header;
+	std::vector<VariableItem *> variable_table_;
+	Word word_header; // It is a linked list.
+	int64_t label_id_now_;
 private:
 	// id allocator
 	static int64_t s_GenerateId();
@@ -64,6 +68,31 @@ Block::Block()
 	name_ = NULL;
 	name_in_ = NULL;
 	name_out_ = NULL;
+	label_id_now_ = -1;
+}
+
+Block::~Block()
+{
+	if (name_ != NULL)
+	{
+		delete[] name_;
+		name_ = NULL;
+	}
+	if (name_in_ != NULL)
+	{
+		delete[] name_in_;
+		name_in_ = NULL;
+	}
+	if (name_out_ != NULL)
+	{
+		delete[] name_out_;
+		name_out_ = NULL;
+	}
+	for (int64_t i = 0; i < variable_table_.size(); ++i)
+	{
+		VariableItem::s_Free(variable_table_[i]);
+		variable_table_[i] = NULL;
+	}
 }
 
 Block * Block::AddChild()
@@ -125,7 +154,7 @@ int64_t Block::SetName()
 		delete[] name_;
 		name_ = NULL;
 	}
-	name_ = new char(8 + int64_t(log10(double(id_))));
+	name_ = new char[8 + int64_t(log10(double(id_)))];
 	if (NULL == name_)
 	{
 		return -1;
@@ -137,7 +166,7 @@ int64_t Block::SetName()
 		delete[] name_in_;
 		name_in_ = NULL;
 	}
-	name_in_ = new char(11 + int64_t(log10(double(id_))));
+	name_in_ = new char[11 + int64_t(log10(double(id_)))];
 	if (NULL == name_in_)
 	{
 		return -1;
@@ -149,13 +178,27 @@ int64_t Block::SetName()
 		delete[] name_out_;
 		name_out_ = NULL;
 	}
-	name_out_ = new char(12 + int64_t(log10(double(id_))));
+	name_out_ = new char[12 + int64_t(log10(double(id_)))];
 	if (NULL == name_out_)
 	{
 		return -1;
 	}
 	sprintf(name_out_, "block_%I64d_out", id_);
 	return 1;
+}
+
+char * Block::GeneratLabelName()
+{
+	// The returned value point to a block of dynamically allocated memory. It should be reclaim after using.
+	char * value;
+	label_id_now_ += 1;
+	value = new char[strlen(name_) + int64_t(log10(double(label_id_now_))) + 8];
+	if (NULL == value)
+	{
+		return NULL;
+	}
+	sprintf(value, "%s_label_%I64d", name_, label_id_now_);
+	return value;
 }
 
 int64_t Block::s_GenerateId()
