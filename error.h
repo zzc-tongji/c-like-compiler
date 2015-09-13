@@ -81,6 +81,39 @@ char * Error::GetErrorString(SourceFile * source_file_p)
 	case 0x2003:
 		sprintf(error_string_, "[0x%04I64X] Fail to acquire enough memory.", error_no_);
 		break;
+	case 0x3001:
+		sprintf(error_string_, "[0x%04I64X] {Line: %I64d, offset: %I64d} The function head is empty.", error_no_, display_line_, display_offset_);
+		break;
+	case 0x3002:
+		sprintf(error_string_, "[0x%04I64X] {Line: %I64d, offset: %I64d} The type of returned value should be \"int\" or \"void\".", error_no_, display_line_, display_offset_);
+		break;
+	case 0x3003:
+		sprintf(error_string_, "[0x%04I64X] {Line: %I64d, offset: %I64d} There is an unexpected ending.", error_no_, display_line_, display_offset_);
+		break;
+	case 0x3004:
+		sprintf(error_string_, "[0x%04I64X] {Line: %I64d, offset: %I64d} The function name should be an identifier.", error_no_, display_line_, display_offset_);
+		break;
+	case 0x3005:
+		sprintf(error_string_, "[0x%04I64X] {Line: %I64d, offset: %I64d} There should be a \"(\".", error_no_, display_line_, display_offset_);
+		break;
+	case 0x3006:
+		sprintf(error_string_, "[0x%04I64X] {Line: %I64d, offset: %I64d} The type of parameter should be \"int\".", error_no_, display_line_, display_offset_);
+		break;
+	case 0x3007:
+		sprintf(error_string_, "[0x%04I64X] {Line: %I64d, offset: %I64d} The parameter name should be an identifier.", error_no_, display_line_, display_offset_);
+		break;
+	case 0x3008:
+		sprintf(error_string_, "[0x%04I64X] {Line: %I64d, offset: %I64d} There should be a \")\" or \",\".", error_no_, display_line_, display_offset_);
+		break;
+	case 0x3009:
+		sprintf(error_string_, "[0x%04I64X] Fail to acquire enough memory.", error_no_);
+		break;
+	case 0x4001:
+		sprintf(error_string_, "[0x%04I64X] {Line: %I64d, offset: %I64d} There is a syntax error.", error_no_, display_line_, display_offset_);
+		break;
+	case 0x4002:
+		sprintf(error_string_, "[0x%04I64X] Fail to acquire enough memory.", error_no_);
+		break;
 	default:
 		error_string_[0] = '\0';
 		break;

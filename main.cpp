@@ -10,14 +10,23 @@
 #include "annotation_item.h"
 #include "block.h"
 #include "word.h"
+#include "parser_item.h"
 
 //#define TEST_BLOCK_1
 //#define TEST_BLOCK_2
 //#define TEST_BLOCK_3
+//#define TEST_BLOCK_4
+//#define TEST_BLOCK_5
+//#define TEST_BLOCK_6
+//#define TEST_BLOCK_7
 
 int64_t ReadSourceFile(const char * path, SourceFile * source_file_p, Error * error_p);
 int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<FunctionItem *> * function_table_p, std::vector<Block *> * block_table);
 int64_t LexicalAnalyse(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer);
+void RemoveBlankWord(bool is_block, void * pointer);
+int64_t ParseFunctionHead(SourceFile * source_file_p, Error * error_p, FunctionItem * function_item_p);
+int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p);
+int64_t ParseBlock_GetSymbol(Word * word_p);
 
 int main(int argc, char ** argv)
 {
@@ -172,8 +181,116 @@ int main(int argc, char ** argv)
 			counter = 0;
 		}
 		printf("----------  test block #3: END ----------\n\n");
+		system("PAUSE");
 	}
 #endif
+	for (int64_t i = 0; i < function_table.size(); ++i)
+	{
+		RemoveBlankWord(false, function_table[i]);
+	}
+	for (int64_t i = 0; i < block_table.size(); ++i)
+	{
+		RemoveBlankWord(true, block_table[i]);
+	}
+#ifdef TEST_BLOCK_4
+	// test block #4
+	{
+		printf("----------  test block #4: BEGIN ----------\n\n");
+		Word * word;
+		int64_t counter = 0;
+		for (int64_t i = 0; i < function_table.size(); ++i)
+		{
+			word = &(function_table[i]->word_header);
+			printf("# function: BEGIN #\n");
+			while (word != NULL)
+			{
+				printf("{\n");
+				if (word->content_)
+				{
+					printf("\tcontent:           %s\n", word->content_);
+				}
+				printf("\ttype:              %I64d\n", word->type_);
+				printf("\tsource_file_index: %I64d\n", word->source_file_index_);
+				printf("}\n");
+				counter += 1;
+				if (counter % 50 == 0)
+				{
+					system("PAUSE");
+				}
+				word = word->next_;
+			}
+			printf("\n# function: END #\n\n");
+			system("PAUSE");
+			counter = 0;
+		}
+		for (int64_t i = 0; i < block_table.size(); ++i)
+		{
+			word = &(block_table[i]->word_header);
+			printf("# %s: BEGIN #\n", block_table[i]->name_);
+			while (word != NULL)
+			{
+				printf("{\n");
+				if (word->content_)
+				{
+					printf("\tcontent:           %s\n", word->content_);
+				}
+				printf("\ttype:              %I64d\n", word->type_);
+				printf("\tsource_file_index: %I64d\n", word->source_file_index_);
+				printf("}\n");
+				counter += 1;
+				if (counter % 50 == 0)
+				{
+					system("PAUSE");
+				}
+				word = word->next_;
+			}
+			printf("\n# %s: END #\n\n", block_table[i]->name_);
+			system("PAUSE");
+			counter = 0;
+		}
+		printf("----------  test block #4: END ----------\n\n");
+		system("PAUSE");
+	}
+#endif
+	for (int64_t i = 0; i < function_table.size(); ++i)
+	{
+		if (-1 == ParseFunctionHead(&source_file, &error, function_table[i]))
+		{
+			printf("%s\n", error.GetErrorString(&source_file));
+			system("PAUSE");
+			return 0;
+		}
+	}
+#ifdef TEST_BLOCK_5
+	// test block #5
+	{
+		printf("----------  test block #5: BEGIN ----------\n\n");
+		for (int64_t i = 0; i < function_table.size(); ++i)
+		{
+			printf("# %s: BEGIN #\n", function_table[i]->name_);
+			printf("{\n");
+			printf("\ttype of returned value: %I64d\n", function_table[i]->return_type_);
+			for (int64_t j = 0; j < function_table[i]->parameter_table_.size(); ++j)
+			{
+				printf("\tparameter       % 6I64d: %s\n", j, function_table[i]->parameter_table_[j]->name_);
+			}
+			printf("}\n");
+			printf("# %s: END #\n\n", function_table[i]->name_);
+			system("PAUSE");
+		}
+		printf("----------  test block #5: END ----------\n\n");
+		system("PAUSE");
+	}
+#endif
+	for (int64_t i = 0; i < block_table.size(); ++i)
+	{
+		if (-1 == ParseBlock(&source_file, &error, block_table[i]))
+		{
+			printf("%s\n", error.GetErrorString(&source_file));
+			system("PAUSE");
+			return 0;
+		}
+	}
 	// reclaim memory
 	for (int64_t i = 0; i < function_table.size(); ++i)
 	{
@@ -286,6 +403,12 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 	// function: The first function must be at the beginning of the source file. If not, there must be an function format error. This type of error will be checked out behind.
 	function_table_p->push_back(function_item_pointer);
 	(*function_table_p)[function_table_p->size() - 1] = FunctionItem::s_Malloc();
+	if (NULL == (*function_table_p)[function_table_p->size() - 1])
+	{
+		error_p->major_no_ = 1;
+		error_p->minor_no_ = 4;
+		return -1;
+	}
 	(*function_table_p)[function_table_p->size() - 1]->beginning_ = 0;
 	// block
 	block_root = new Block();
@@ -343,6 +466,14 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 				// fill in vector "annotation_table" (1)
 				source_file_p->annotation_table_.push_back(annotation_item_pointer);
 				source_file_p->annotation_table_[source_file_p->annotation_table_.size() - 1] = AnnotationItem::s_Malloc();
+				if (NULL == source_file_p->annotation_table_[source_file_p->annotation_table_.size() - 1])
+				{
+					error_p->major_no_ = 1;
+					error_p->minor_no_ = 4;
+					// free
+					Block::s_FreeAll(block_root);
+					return -1;
+				}
 				source_file_p->annotation_table_[source_file_p->annotation_table_.size() - 1]->beginning_ = source_file_p->index_;
 				// skip the next character
 				source_file_p->index_ += 1;
@@ -459,6 +590,14 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 				(*function_table_p)[function_table_p->size() - 1]->end_ = source_file_p->index_;
 				function_table_p->push_back(function_item_pointer);
 				(*function_table_p)[function_table_p->size() - 1] = FunctionItem::s_Malloc();
+				if (NULL == (*function_table_p)[function_table_p->size() - 1])
+				{
+					error_p->major_no_ = 1;
+					error_p->minor_no_ = 4;
+					// free
+					Block::s_FreeAll(block_root);
+					return -1;
+				}
 				(*function_table_p)[function_table_p->size() - 1]->beginning_ = source_file_p->index_ + 1;
 			}
 			break;
@@ -647,6 +786,13 @@ int64_t LexicalAnalyse(SourceFile * source_file_p, Error * error_p, std::vector<
 					// set status
 					status = 302;
 					break;
+				case '$':
+					// read a char
+					Word::s_buffer_[Word::s_buffer_index_] = ch;
+					Word::s_MoveBufferIndex(true, 1);
+					// set status
+					status = 303;
+					break;
 				case ' ':
 				case '\t':
 				case '\r':
@@ -730,7 +876,7 @@ int64_t LexicalAnalyse(SourceFile * source_file_p, Error * error_p, std::vector<
 			{
 				// set word
 				word_p->SetContent(Word::s_buffer_);
-				word_p->type_ = Word::c_constant_double_;
+				word_p->type_ = Word::c_constant_int_;
 				word_p->source_file_index_ = source_file_p->index_;
 				// reset global buffer
 				Word::s_MoveBufferIndex(false, 0);
@@ -751,7 +897,7 @@ int64_t LexicalAnalyse(SourceFile * source_file_p, Error * error_p, std::vector<
 			{
 				// set word
 				word_p->SetContent(Word::s_buffer_);
-				word_p->type_ = Word::c_constant_double_;
+				word_p->type_ = Word::c_constant_int_;
 				word_p->source_file_index_ = source_file_p->index_;
 				// reset global buffer
 				Word::s_MoveBufferIndex(false, 0);
@@ -828,6 +974,24 @@ int64_t LexicalAnalyse(SourceFile * source_file_p, Error * error_p, std::vector<
 			break;
 		case 302:
 			if ('=' == ch)
+			{
+				// read a char
+				Word::s_buffer_[Word::s_buffer_index_] = ch;
+				Word::s_MoveBufferIndex(true, 1);
+				// set status
+				status = 399;
+			}
+			else
+			{
+				// read a char
+				Word::s_buffer_[Word::s_buffer_index_] = ch;
+				Word::s_MoveBufferIndex(true, 1);
+				// set status
+				status = 398;
+			}
+			break;
+		case 303:
+			if ('$' == ch)
 			{
 				// read a char
 				Word::s_buffer_[Word::s_buffer_index_] = ch;
@@ -938,4 +1102,830 @@ int64_t LexicalAnalyse(SourceFile * source_file_p, Error * error_p, std::vector<
 		}
 	}
 	return 1;
+}
+
+void RemoveBlankWord(bool is_block, void * pointer)
+{
+	if (NULL == pointer)
+	{
+		throw std::exception("Function \"void RemoveBlankWord(bool is_block, void * pointer)\" says: Invalid parameter \"pointer\".");
+	}
+	Block * block_p;
+	FunctionItem * function_item_p;
+	Word * word_p;
+	Word * word_next_p;
+	if (is_block)
+	{
+		// block
+		block_p = (Block *)pointer;
+		function_item_p = NULL;
+		word_p = block_p->word_header.next_;
+		// remove "{" in the beginning
+		word_next_p = word_p->next_;
+		Word::s_Remove(word_p);
+		word_p = word_next_p;
+	}
+	else
+	{
+		// function (head)
+		block_p = NULL;
+		function_item_p = (FunctionItem *)pointer;
+		word_p = function_item_p->word_header.next_;
+	}
+	while (word_p)
+	{
+		word_next_p = word_p->next_;
+		if (is_block && NULL == word_next_p)
+		{
+			// remove "}" in the end
+			Word::s_Remove(word_p);
+			word_p = NULL;
+		}
+		else
+		{
+			// remove blank word
+			if (Word::c_separator_ == word_p->type_)
+			{
+				switch (word_p->content_[0])
+				{
+				case ' ':
+				case '\t':
+				case '\r':
+				case '\n':
+					Word::s_Remove(word_p);
+					break;
+				default:
+					break;
+				}
+			}
+			word_p = word_next_p;
+		}
+	}
+}
+
+int64_t ParseFunctionHead(SourceFile * source_file_p, Error * error_p, FunctionItem * function_item_p)
+{
+	if (NULL == source_file_p)
+	{
+		throw std::exception("Function \"int64_t ParseFunctionHead(SourceFile * source_file_p, Error * error_p, FunctionItem * function_item_p)\" says: Invalid parameter \"source_file_p\".");
+	}
+	if (NULL == error_p)
+	{
+		throw std::exception("Function \"int64_t ParseFunctionHead(SourceFile * source_file_p, Error * error_p, FunctionItem * function_item_p)\" says: Invalid parameter \"error_p\".");
+	}
+	if (NULL == function_item_p)
+	{
+		throw std::exception("Function \"int64_t ParseFunctionHead(SourceFile * source_file_p, Error * error_p, FunctionItem * function_item_p)\" says: Invalid parameter \"function_item_p\".");
+	}
+	Word * word_p = function_item_p->word_header.next_;
+	int64_t parameter_number = 0;
+	bool end = false;
+	//VariableItem temp;
+	// type of return value
+	VariableItem * pointer;
+	if (NULL == word_p)
+	{
+		// error
+		error_p->major_no_ = 3;
+		error_p->minor_no_ = 1;
+		source_file_p->JumpTo(function_item_p->beginning_);
+		return -1;
+	}
+	if (word_p->type_ != Word::c_keyword_)
+	{
+		// error
+		error_p->major_no_ = 3;
+		error_p->minor_no_ = 2;
+		source_file_p->JumpTo(word_p->source_file_index_);
+		return -1;
+	}
+	if (0 == strcmp(word_p->content_, "void"))
+	{
+		function_item_p->return_type_ = VariableItem::c_void_;
+	}
+	else if (0 == strcmp(word_p->content_, "int"))
+	{
+		function_item_p->return_type_ = VariableItem::c_int_;
+	}
+	else
+	{
+		// error
+		error_p->major_no_ = 3;
+		error_p->minor_no_ = 2;
+		source_file_p->JumpTo(word_p->source_file_index_);
+		return -1;
+	}
+	// function name
+	word_p = word_p->next_;
+	if (NULL == word_p)
+	{
+		// error
+		error_p->major_no_ = 3;
+		error_p->minor_no_ = 3;
+		source_file_p->JumpTo(function_item_p->beginning_);
+		return -1;
+	}
+	if (word_p->type_ != Word::c_identifier_)
+	{
+		// error
+		error_p->major_no_ = 3;
+		error_p->minor_no_ = 4;
+		source_file_p->JumpTo(word_p->source_file_index_);
+		return -1;
+	}
+	function_item_p->SetName(word_p->content_);
+	// "("
+	word_p = word_p->next_;
+	if (NULL == word_p)
+	{
+		// error
+		error_p->major_no_ = 3;
+		error_p->minor_no_ = 3;
+		source_file_p->JumpTo(function_item_p->beginning_);
+		return -1;
+	}
+	if (word_p->type_ != Word::c_operator_ || word_p->content_[0] != '(')
+	{
+		// error
+		error_p->major_no_ = 3;
+		error_p->minor_no_ = 5;
+		source_file_p->JumpTo(word_p->source_file_index_);
+		return -1;
+	}
+	// function with no parameter
+	if (word_p != NULL && word_p->next_ != NULL && ')' == word_p->next_->content_[0])
+	{
+		end = true;
+	}
+	// function with parameter
+	while (false == end)
+	{
+		// type of parameter
+		word_p = word_p->next_;
+		if (NULL == word_p)
+		{
+			// error
+			error_p->major_no_ = 3;
+			error_p->minor_no_ = 3;
+			source_file_p->JumpTo(function_item_p->beginning_);
+			return -1;
+		}
+		if (strcmp(word_p->content_, "int"))
+		{
+			// error
+			error_p->major_no_ = 3;
+			error_p->minor_no_ = 6;
+			source_file_p->JumpTo(word_p->source_file_index_);
+			return -1;
+		}
+		function_item_p->parameter_table_.push_back(pointer);
+		function_item_p->parameter_table_[function_item_p->parameter_table_.size() - 1] = VariableItem::s_Malloc();
+		if (NULL == function_item_p->parameter_table_[function_item_p->parameter_table_.size() - 1])
+		{
+			error_p->major_no_ = 3;
+			error_p->minor_no_ = 9;
+			return -1;
+		}
+		function_item_p->parameter_table_[function_item_p->parameter_table_.size() - 1]->type_ = VariableItem::c_int_;
+		// parameter name
+		word_p = word_p->next_;
+		if (NULL == word_p)
+		{
+			// error
+			error_p->major_no_ = 3;
+			error_p->minor_no_ = 3;
+			source_file_p->JumpTo(function_item_p->beginning_);
+			return -1;
+		}
+		if (word_p->type_ != Word::c_identifier_)
+		{
+			// error
+			error_p->major_no_ = 3;
+			error_p->minor_no_ = 7;
+			source_file_p->JumpTo(word_p->source_file_index_);
+			return -1;
+		}
+		if (-1 == function_item_p->parameter_table_[function_item_p->parameter_table_.size() - 1]->SetName(word_p->content_))
+		{
+			// error
+			error_p->major_no_ = 3;
+			error_p->minor_no_ = 9;
+			return -1;
+		}
+		// "," or ")"
+		word_p = word_p->next_;
+		if (NULL == word_p)
+		{
+			// error
+			error_p->major_no_ = 3;
+			error_p->minor_no_ = 3;
+			source_file_p->JumpTo(function_item_p->beginning_);
+			return -1;
+		}
+		if (word_p->type_ != Word::c_separator_ || word_p->content_[0] != ',')
+		{
+			if (word_p->type_ != Word::c_operator_ || word_p->content_[0] != ')')
+			{
+				// error
+				error_p->major_no_ = 3;
+				error_p->minor_no_ = 8;
+				source_file_p->JumpTo(word_p->source_file_index_);
+				return -1;
+			}
+			else
+			{
+				end = true;
+			}
+		}
+	}
+	return 1;
+}
+
+int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p)
+{
+	if (NULL == source_file_p)
+	{
+		throw std::exception("Function \"int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p)\" says: Invalid parameter \"source_file_p\".");
+	}
+	if (NULL == error_p)
+	{
+		throw std::exception("Function \"int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p)\" says: Invalid parameter \"error_p\".");
+	}
+	if (NULL == block_p)
+	{
+		throw std::exception("Function \"int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p)\" says: Invalid parameter \"block_p\".");
+	}
+	char priority_table[28][28];
+	const char undefined = 'u';
+	const char c_equal_to = '=';
+	const char c_less_than = '<';
+	const char c_greater_than = '>';
+	// u : initialization
+	for (int64_t i = 0; i < 28; ++i)
+	{
+		for (int64_t j = 0; j < 28; ++j)
+		{
+			priority_table[i][j] = undefined;
+		}
+	}
+	// = : 18 items
+	priority_table[0][0] = c_equal_to;
+	priority_table[1][14] = c_equal_to;
+	priority_table[1][26] = c_equal_to;
+	priority_table[2][0] = c_equal_to;
+	priority_table[8][9] = c_equal_to;
+	priority_table[9][16] = c_equal_to;
+	priority_table[16][17] = c_equal_to;
+	priority_table[17][20] = c_equal_to;
+	priority_table[18][26] = c_equal_to;
+	priority_table[19][8] = c_equal_to;
+	priority_table[20][16] = c_equal_to;
+	priority_table[21][8] = c_equal_to;
+	priority_table[22][14] = c_equal_to;
+	priority_table[23][1] = c_equal_to;
+	priority_table[24][1] = c_equal_to;
+	priority_table[26][1] = c_equal_to;
+	priority_table[26][2] = c_equal_to;
+	priority_table[26][8] = c_equal_to;
+	// < : 59 + 27 items
+	priority_table[0][26] = c_less_than;
+	priority_table[2][3] = c_less_than;
+	priority_table[2][4] = c_less_than;
+	priority_table[2][5] = c_less_than;
+	priority_table[2][6] = c_less_than;
+	priority_table[2][7] = c_less_than;
+	priority_table[2][8] = c_less_than;
+	priority_table[2][25] = c_less_than;
+	priority_table[2][26] = c_less_than;
+	priority_table[3][5] = c_less_than;
+	priority_table[3][6] = c_less_than;
+	priority_table[3][7] = c_less_than;
+	priority_table[3][8] = c_less_than;
+	priority_table[3][25] = c_less_than;
+	priority_table[3][26] = c_less_than;
+	priority_table[4][5] = c_less_than;
+	priority_table[4][6] = c_less_than;
+	priority_table[4][7] = c_less_than;
+	priority_table[4][8] = c_less_than;
+	priority_table[4][25] = c_less_than;
+	priority_table[4][26] = c_less_than;
+	priority_table[5][8] = c_less_than;
+	priority_table[5][25] = c_less_than;
+	priority_table[5][26] = c_less_than;
+	priority_table[6][8] = c_less_than;
+	priority_table[6][25] = c_less_than;
+	priority_table[6][26] = c_less_than;
+	priority_table[7][8] = c_less_than;
+	priority_table[7][25] = c_less_than;
+	priority_table[7][26] = c_less_than;
+	priority_table[8][3] = c_less_than;
+	priority_table[8][4] = c_less_than;
+	priority_table[8][5] = c_less_than;
+	priority_table[8][6] = c_less_than;
+	priority_table[8][7] = c_less_than;
+	priority_table[8][8] = c_less_than;
+	priority_table[8][10] = c_less_than;
+	priority_table[8][11] = c_less_than;
+	priority_table[8][12] = c_less_than;
+	priority_table[8][13] = c_less_than;
+	priority_table[8][15] = c_less_than;
+	priority_table[8][25] = c_less_than;
+	priority_table[8][26] = c_less_than;
+	priority_table[10][25] = c_less_than;
+	priority_table[10][26] = c_less_than;
+	priority_table[11][25] = c_less_than;
+	priority_table[11][26] = c_less_than;
+	priority_table[12][25] = c_less_than;
+	priority_table[12][26] = c_less_than;
+	priority_table[13][10] = c_less_than;
+	priority_table[13][11] = c_less_than;
+	priority_table[13][12] = c_less_than;
+	priority_table[13][13] = c_less_than;
+	priority_table[13][25] = c_less_than;
+	priority_table[13][26] = c_less_than;
+	priority_table[15][25] = c_less_than;
+	priority_table[15][26] = c_less_than;
+	priority_table[22][25] = c_less_than;
+	priority_table[22][26] = c_less_than;
+	for (int64_t i = 1; i < 27; ++i)
+	{
+		priority_table[27][i] = c_less_than;
+	}
+	// > : 67 + 27 + 26 items
+	priority_table[0][14] = c_greater_than;
+	priority_table[2][14] = c_greater_than;
+	priority_table[3][3] = c_greater_than;
+	priority_table[3][4] = c_greater_than;
+	priority_table[3][9] = c_greater_than;
+	priority_table[3][14] = c_greater_than;
+	priority_table[4][3] = c_greater_than;
+	priority_table[4][4] = c_greater_than;
+	priority_table[4][9] = c_greater_than;
+	priority_table[4][14] = c_greater_than;
+	priority_table[5][3] = c_greater_than;
+	priority_table[5][4] = c_greater_than;
+	priority_table[5][5] = c_greater_than;
+	priority_table[5][6] = c_greater_than;
+	priority_table[5][7] = c_greater_than;
+	priority_table[5][9] = c_greater_than;
+	priority_table[5][14] = c_greater_than;
+	priority_table[6][3] = c_greater_than;
+	priority_table[6][4] = c_greater_than;
+	priority_table[6][5] = c_greater_than;
+	priority_table[6][6] = c_greater_than;
+	priority_table[6][7] = c_greater_than;
+	priority_table[6][9] = c_greater_than;
+	priority_table[6][14] = c_greater_than;
+	priority_table[7][3] = c_greater_than;
+	priority_table[7][4] = c_greater_than;
+	priority_table[7][5] = c_greater_than;
+	priority_table[7][6] = c_greater_than;
+	priority_table[7][7] = c_greater_than;
+	priority_table[7][9] = c_greater_than;
+	priority_table[7][14] = c_greater_than;
+	priority_table[9][0] = c_greater_than;
+	priority_table[9][3] = c_greater_than;
+	priority_table[9][4] = c_greater_than;
+	priority_table[9][5] = c_greater_than;
+	priority_table[9][6] = c_greater_than;
+	priority_table[9][7] = c_greater_than;
+	priority_table[9][9] = c_greater_than;
+	priority_table[9][14] = c_greater_than;
+	priority_table[10][9] = c_greater_than;
+	priority_table[11][9] = c_greater_than;
+	priority_table[12][9] = c_greater_than;
+	priority_table[13][9] = c_greater_than;
+	priority_table[15][9] = c_greater_than;
+	priority_table[15][14] = c_greater_than;
+	priority_table[25][3] = c_greater_than;
+	priority_table[25][4] = c_greater_than;
+	priority_table[25][5] = c_greater_than;
+	priority_table[25][6] = c_greater_than;
+	priority_table[25][7] = c_greater_than;
+	priority_table[25][9] = c_greater_than;
+	priority_table[25][10] = c_greater_than;
+	priority_table[25][11] = c_greater_than;
+	priority_table[25][12] = c_greater_than;
+	priority_table[25][14] = c_greater_than;
+	priority_table[25][15] = c_greater_than;
+	priority_table[26][3] = c_greater_than;
+	priority_table[26][4] = c_greater_than;
+	priority_table[26][5] = c_greater_than;
+	priority_table[26][6] = c_greater_than;
+	priority_table[26][7] = c_greater_than;
+	priority_table[26][9] = c_greater_than;
+	priority_table[26][10] = c_greater_than;
+	priority_table[26][11] = c_greater_than;
+	priority_table[26][12] = c_greater_than;
+	priority_table[26][14] = c_greater_than;
+	priority_table[26][15] = c_greater_than;
+	for (int64_t i = 1; i < 27; ++i)
+	{
+		priority_table[14][i] = c_greater_than;
+		if (i != 20)
+		{
+			priority_table[17][i] = c_greater_than;
+		}
+	}
+#ifdef TEST_BLOCK_6
+	// test block
+	{
+		printf("----------  test block #6 : BEGIN ----------\n\n");
+		printf("# priority table: BEGIN #\n\n");
+		printf("   ");
+		for (int64_t j = 0; j < 28; ++j)
+		{
+			printf("%02I64d ", j);
+		}
+		printf("\n");
+		for (int64_t i = 0; i < 28; ++i)
+		{
+			printf("%02I64d  ", i);
+			for (int64_t j = 0; j < 27; ++j)
+			{
+				if ('u' == priority_table[i][j])
+				{
+					printf("   ", priority_table[i][j]);
+				}
+				else
+				{
+					printf("%c  ", priority_table[i][j]);
+				}
+			}
+			printf("\n");
+		}
+		printf("\n# priority table: END #\n\n");
+		printf("----------  test block #6 : END ----------\n\n");
+		system("PAUSE");
+	}
+#endif
+	std::vector<ParserItem *> parser_table;
+	ParserItem * pointer = NULL;
+	for (int64_t i = 0; i < 25; ++i)
+	{
+		parser_table.push_back(pointer);
+		parser_table[parser_table.size() - 1] = ParserItem::s_Malloc();
+		if (NULL == parser_table[parser_table.size() - 1])
+		{
+			error_p->major_no_ = 4;
+			error_p->minor_no_ = 2;
+			return -1;
+		}
+	}
+	// 0
+	parser_table[0]->right.push_back(ParserItem::c_vn_);
+	parser_table[0]->right.push_back(14);
+	// 1
+	parser_table[1]->right.push_back(19);
+	parser_table[1]->right.push_back(8);
+	parser_table[1]->right.push_back(ParserItem::c_vn_);
+	parser_table[1]->right.push_back(9);
+	parser_table[1]->right.push_back(16);
+	parser_table[1]->right.push_back(17);
+	// 2
+	parser_table[2]->right.push_back(19);
+	parser_table[2]->right.push_back(8);
+	parser_table[2]->right.push_back(ParserItem::c_vn_);
+	parser_table[2]->right.push_back(9);
+	parser_table[2]->right.push_back(16);
+	parser_table[2]->right.push_back(17);
+	parser_table[2]->right.push_back(20);
+	parser_table[2]->right.push_back(16);
+	parser_table[2]->right.push_back(17);
+	// 3
+	parser_table[3]->right.push_back(21);
+	parser_table[3]->right.push_back(8);
+	parser_table[3]->right.push_back(ParserItem::c_vn_);
+	parser_table[3]->right.push_back(9);
+	parser_table[3]->right.push_back(16);
+	parser_table[3]->right.push_back(17);
+	// 4
+	parser_table[4]->right.push_back(22);
+	parser_table[4]->right.push_back(ParserItem::c_vn_);
+	parser_table[4]->right.push_back(14);
+	// 5
+	parser_table[5]->right.push_back(23);
+	parser_table[5]->right.push_back(1);
+	parser_table[5]->right.push_back(26);
+	parser_table[5]->right.push_back(1);
+	parser_table[5]->right.push_back(14);
+	// 6
+	parser_table[6]->right.push_back(24);
+	parser_table[6]->right.push_back(1);
+	parser_table[6]->right.push_back(26);
+	parser_table[6]->right.push_back(1);
+	parser_table[6]->right.push_back(14);
+	// 7
+	parser_table[7]->right.push_back(26);
+	parser_table[7]->right.push_back(2);
+	parser_table[7]->right.push_back(ParserItem::c_vn_);
+	// 8
+	parser_table[8]->right.push_back(26);
+	parser_table[8]->right.push_back(2);
+	parser_table[8]->right.push_back(0);
+	parser_table[8]->right.push_back(ParserItem::c_vn_);
+	parser_table[8]->right.push_back(0);
+	// 9
+	parser_table[9]->right.push_back(ParserItem::c_vn_);
+	parser_table[9]->right.push_back(3);
+	parser_table[9]->right.push_back(ParserItem::c_vn_);
+	// 10
+	parser_table[10]->right.push_back(ParserItem::c_vn_);
+	parser_table[10]->right.push_back(4);
+	parser_table[10]->right.push_back(ParserItem::c_vn_);
+	// 11
+	parser_table[11]->right.push_back(ParserItem::c_vn_);
+	parser_table[11]->right.push_back(5);
+	parser_table[11]->right.push_back(ParserItem::c_vn_);
+	// 12
+	parser_table[12]->right.push_back(ParserItem::c_vn_);
+	parser_table[12]->right.push_back(6);
+	parser_table[12]->right.push_back(ParserItem::c_vn_);
+	// 13
+	parser_table[13]->right.push_back(ParserItem::c_vn_);
+	parser_table[13]->right.push_back(7);
+	parser_table[13]->right.push_back(ParserItem::c_vn_);
+	// 14
+	parser_table[14]->right.push_back(8);
+	parser_table[14]->right.push_back(ParserItem::c_vn_);
+	parser_table[14]->right.push_back(9);
+	// 15
+	parser_table[15]->right.push_back(25);
+	// 16
+	parser_table[16]->right.push_back(26);
+	// 17
+	parser_table[17]->right.push_back(18);
+	parser_table[17]->right.push_back(26);
+	// 18
+	parser_table[18]->right.push_back(26);
+	parser_table[18]->right.push_back(8);
+	parser_table[18]->right.push_back(ParserItem::c_vn_);
+	parser_table[18]->right.push_back(9);
+	// 19
+	parser_table[19]->right.push_back(26);
+	parser_table[19]->right.push_back(8);
+	parser_table[19]->right.push_back(9);
+	// 20
+	parser_table[20]->right.push_back(ParserItem::c_vn_);
+	parser_table[20]->right.push_back(15);
+	parser_table[20]->right.push_back(ParserItem::c_vn_);
+	// 21
+	parser_table[21]->right.push_back(ParserItem::c_vn_);
+	parser_table[21]->right.push_back(10);
+	parser_table[21]->right.push_back(ParserItem::c_vn_);
+	// 22
+	parser_table[22]->right.push_back(ParserItem::c_vn_);
+	parser_table[22]->right.push_back(11);
+	parser_table[22]->right.push_back(ParserItem::c_vn_);
+	// 23
+	parser_table[23]->right.push_back(ParserItem::c_vn_);
+	parser_table[23]->right.push_back(12);
+	parser_table[23]->right.push_back(ParserItem::c_vn_);
+	// 24
+	parser_table[24]->right.push_back(13);
+	parser_table[24]->right.push_back(ParserItem::c_vn_);
+#ifdef TEST_BLOCK_7
+	// test block
+	{
+		printf("----------  test block #7 : BEGIN ----------\n\n");
+		printf("# parser: BEGIN #\n\n");
+		for (int64_t i = 0; i < parser_table.size(); ++i)
+		{
+			printf("[% 3I64d] % 3I64d ---> ", i, parser_table[i]->left);
+			for (int64_t j = 0; j < parser_table[i]->right.size(); ++j)
+			{
+				printf("% 3I64d ", parser_table[i]->right[j]);
+			}
+			printf("\n");
+		}
+		printf("\n# parser: END #\n\n");
+		printf("----------  test block #7 : END ----------\n\n");
+		system("PAUSE");
+	}
+#endif
+	std::vector<int64_t> symbol_stack;
+	Word * word_p;
+	int64_t stack_top_vt;
+	int64_t next_vt;
+	int64_t vt_index_1;
+	int64_t vt_index_2;
+	int64_t phrase_beginning_index;
+	int64_t phrase_end_index;
+	int64_t phrase_length;
+	int64_t selected_phrase_index;
+	bool matched;
+	bool first_phrase = true;
+	bool end_immediate = false;
+	//prioritized operators algorithm
+	word_p = block_p->word_header.next_;
+	if (NULL == word_p)
+	{
+		return 1;
+	}
+	// push '@'
+	symbol_stack.push_back(27);
+	while (false == end_immediate)
+	{
+		// step 1: read symbol
+		if (word_p != NULL)
+		{
+			for (int64_t i = 0; i < symbol_stack.size(); ++i)
+			{
+				if (symbol_stack[i] >= 0)
+				{
+					stack_top_vt = symbol_stack[i];
+				}
+			}
+			next_vt = ParseBlock_GetSymbol(word_p);
+			while (priority_table[stack_top_vt][next_vt] != '>')
+			{
+				if (priority_table[stack_top_vt][next_vt] == 'u')
+				{
+					// error
+					error_p->major_no_ = 4;
+					error_p->minor_no_ = 1;
+					if (NULL != word_p)
+					{
+						source_file_p->JumpTo(word_p->source_file_index_);
+					}
+					return -1;
+				}
+				stack_top_vt = next_vt;
+				symbol_stack.push_back(stack_top_vt);
+				word_p = word_p->next_;
+				if (word_p != NULL)
+				{
+					next_vt = ParseBlock_GetSymbol(word_p);
+				}
+			}
+		}
+		// step 2: locate leftmost prime phrase
+		// Tips: symbol_stack[0] == 27
+		for (vt_index_2 = symbol_stack.size() - 1; ParserItem::c_vn_ == symbol_stack[vt_index_2]; --vt_index_2)
+			;
+		while (true)
+		{
+			if (0 == vt_index_2)
+			{
+				end_immediate = true;
+				break;
+			}
+			for (vt_index_1 = vt_index_2 - 1; ParserItem::c_vn_ == symbol_stack[vt_index_1]; --vt_index_1)
+				;
+			if ('<' == priority_table[symbol_stack[vt_index_1]][symbol_stack[vt_index_2]])
+			{
+				break;
+			}
+			vt_index_2 = vt_index_1;
+		}
+		if (end_immediate)
+		{
+			break;
+		}
+		phrase_beginning_index = vt_index_1 + 1;
+		phrase_end_index = symbol_stack.size() - 1;
+		phrase_length = phrase_end_index - phrase_beginning_index + 1;
+		// step 3: select a parser to reduct
+		for (int64_t i = 0; i < 25; ++i)
+		{
+			matched = false;
+			if (parser_table[i]->right.size() == phrase_length)
+			{
+				matched = true;
+				for (int64_t j = 0; j < phrase_length; ++j)
+				{
+					if (parser_table[i]->right[j] != symbol_stack[phrase_beginning_index + j])
+					{
+						matched = false;
+						break;
+					}
+				}
+			}
+			if (matched)
+			{
+				selected_phrase_index = i;
+				break;
+			}
+		}
+		if (false == matched)
+		{
+			// error
+		}
+		// pop
+		for (int64_t i = 0; i < phrase_length; ++i)
+		{
+			symbol_stack.pop_back();
+		}
+		// push
+		if (selected_phrase_index != 0)
+		{
+			symbol_stack.push_back(ParserItem::c_vn_);
+		}
+		// step 4: semantic processing
+	}
+	return 1;
+}
+
+int64_t ParseBlock_GetSymbol(Word * word_p)
+{
+	if (NULL == word_p)
+	{
+		throw std::exception("Function \"int64_t ParseBlock_GetSymbol(Word * word_p)\" says: Invalid parameter \"word_p\".");
+	}
+	switch (word_p->type_)
+	{
+	case Word::c_identifier_:
+		return 26;
+	case Word::c_constant_int_:
+		return 25;
+	default:
+		switch (word_p->content_[0])
+		{
+		case '$':
+			if ('$' == word_p->content_[1])
+			{
+				// $$
+				return 1;
+			}
+			else
+			{
+				// $
+				return 0;
+			}
+		case '=':
+			if ('=' == word_p->content_[1])
+			{
+				// ==
+				return 12;
+			}
+			else
+			{
+				// =
+				return 2;
+			}
+		case '+':
+			return 3;
+			break;
+		case '-':
+			return 4;
+		case '*':
+			return 5;
+		case '/':
+			return 6;
+		case '%':
+			return 7;
+		case '(':
+			return 8;
+		case ')':
+			return 9;
+		case '>':
+			return 10;
+		case '<':
+			return 11;
+		case '!':
+			return 13;
+		case ';':
+			return 14;
+		case ',':
+			return 15;
+		case '{':
+			return 16;
+		case '}':
+			return 17;
+		default:
+			if (0 == strcmp(word_p->content_, "int"))
+			{
+				return 18;
+			}
+			else if (0 == strcmp(word_p->content_, "if"))
+			{
+				return 19;
+			}
+			else if (0 == strcmp(word_p->content_, "else"))
+			{
+				return 20;
+			}
+			else if (0 == strcmp(word_p->content_, "while"))
+			{
+				return 21;
+			}
+			else if (0 == strcmp(word_p->content_, "return"))
+			{
+				return 22;
+			}
+			else if (0 == strcmp(word_p->content_, "input"))
+			{
+				return 23;
+			}
+			else if (0 == strcmp(word_p->content_, "output"))
+			{
+				return 24;
+			}
+			else
+			{
+				throw std::exception("Function \"int64_t ParseBlock_GetSymbol(Word * word_p)\" says: Invalid word. There is something wrong in function \"int64_t LexicalAnalyse(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer)\".");
+			}
+		}
+	}
+	word_p = word_p->next_;
 }

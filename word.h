@@ -13,9 +13,8 @@ public:
 	const static int64_t c_keyword_ = 0;
 	const static int64_t c_identifier_ = 1;
 	const static int64_t c_constant_int_ = 2;
-	const static int64_t c_constant_double_ = 3;
-	const static int64_t c_operator_ = 4;
-	const static int64_t c_separator_ = 5;
+	const static int64_t c_operator_ = 3;
+	const static int64_t c_separator_ = 4;
 	static Word * s_Insert(Word * it_next);
 	static void s_Remove(Word * it_self);
 	static int64_t s_MoveBufferIndex(bool offset, int64_t number);

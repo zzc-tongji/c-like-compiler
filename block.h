@@ -10,6 +10,7 @@
 #include <exception>
 #include "variable_item.h"
 #include "word.h"
+#include "code_item.h"
 
 class FunctionItem;
 
@@ -40,6 +41,8 @@ public:
 	std::vector<VariableItem *> variable_table_;
 	Word word_header; // It is a linked list.
 	int64_t label_id_now_;
+	std::vector<CodeItem *> intermediate;
+	std::vector<CodeItem *> assembler;
 private:
 	// id allocator
 	static int64_t s_GenerateId();
@@ -92,6 +95,16 @@ Block::~Block()
 	{
 		VariableItem::s_Free(variable_table_[i]);
 		variable_table_[i] = NULL;
+	}
+	for (int64_t i = 0; i < intermediate.size(); ++i)
+	{
+		CodeItem::s_Free(intermediate[i]);
+		intermediate[i] = NULL;
+	}
+	for (int64_t i = 0; i < assembler.size(); ++i)
+	{
+		CodeItem::s_Free(assembler[i]);
+		assembler[i] = NULL;
 	}
 }
 

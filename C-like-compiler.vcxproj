@@ -69,8 +69,10 @@
   <ItemGroup>
     <ClInclude Include="annotation_item.h" />
     <ClInclude Include="block.h" />
+    <ClInclude Include="code_item.h" />
     <ClInclude Include="error.h" />
     <ClInclude Include="function_item.h" />
+    <ClInclude Include="parser_item.h" />
     <ClInclude Include="source_file.h" />
     <ClInclude Include="variable_item.h" />
     <ClInclude Include="word.h" />
