@@ -1800,21 +1800,21 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 	// constant;
 	char * constant;
 	// variable
-	char * variable_name;
-	char * variable_global_name;
+	char * variable_name = NULL;
+	char * variable_global_name = NULL;
 	bool variable_defined;
 	// function
 	char * function_name;
 	bool function_defined;
 	// parameter
-	char * parameter_name;
+	char * parameter_name = NULL;
 	// label
 	char label_1[1024];
 	char label_2[1024];
-	char * label_block_1_in;
-	char * label_block_1_out;
-	char * label_block_2_in;
-	char * label_block_2_out;
+	char * label_block_1_in = NULL;
+	char * label_block_1_out = NULL;
+	char * label_block_2_in = NULL;
+	char * label_block_2_out = NULL;
 	// prioritized operators algorithm
 	// [block_p->name_in_]:
 	if (-1 == GenerateIntermediate(&(block_p->intermediate), block_p->name_in_, NULL, NULL, NULL))
