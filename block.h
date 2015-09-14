@@ -23,7 +23,7 @@ public:
 	Block * AddChild();
 	void FreeAll();
 	int64_t SetName();
-	char * GeneratLabelName();
+	void GeneratLabelName(char * label_name);
 	// location
 	int64_t beginning_;
 	int64_t end_;
@@ -200,18 +200,10 @@ int64_t Block::SetName()
 	return 1;
 }
 
-char * Block::GeneratLabelName()
+void Block::GeneratLabelName(char * label_name)
 {
-	// The returned value point to a block of dynamically allocated memory. It should be reclaim after using.
-	char * value;
 	label_id_now_ += 1;
-	value = new char[strlen(name_) + int64_t(log10(double(label_id_now_))) + 8];
-	if (NULL == value)
-	{
-		return NULL;
-	}
-	sprintf(value, "%s_label_%I64d", name_, label_id_now_);
-	return value;
+	sprintf(label_name, "%s_label_%I64d", name_, label_id_now_);
 }
 
 int64_t Block::s_GenerateId()

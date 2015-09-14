@@ -106,12 +106,21 @@ char * Error::GetErrorString(SourceFile * source_file_p)
 		sprintf(error_string_, "[0x%04I64X] {Line: %I64d, offset: %I64d} There should be a \")\" or \",\".", error_no_, display_line_, display_offset_);
 		break;
 	case 0x3009:
+		sprintf(error_string_, "[0x%04I64X] Can not find function \"main\".", error_no_);
+		break;
+	case 0x300A:
 		sprintf(error_string_, "[0x%04I64X] Fail to acquire enough memory.", error_no_);
 		break;
 	case 0x4001:
 		sprintf(error_string_, "[0x%04I64X] {Line: %I64d, offset: %I64d} There is a syntax error.", error_no_, display_line_, display_offset_);
 		break;
 	case 0x4002:
+		sprintf(error_string_, "[0x%04I64X] {Line: %I64d, offset: %I64d} This variable has not been defined.", error_no_, display_line_, display_offset_);
+		break;
+	case 0x4003:
+		sprintf(error_string_, "[0x%04I64X] {Line: %I64d, offset: %I64d} This function has not been defined.", error_no_, display_line_, display_offset_);
+		break;
+	case 0x4004:
 		sprintf(error_string_, "[0x%04I64X] Fail to acquire enough memory.", error_no_);
 		break;
 	default:

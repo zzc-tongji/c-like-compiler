@@ -29,6 +29,8 @@ public:
 	int64_t return_type_;
 	std::vector<VariableItem *> parameter_table_;
 	Word word_header; // It is a linked list.
+	std::vector<CodeItem *> intermediate;
+	std::vector<CodeItem *> assembler;
 };
 
 FunctionItem * FunctionItem::s_Malloc()

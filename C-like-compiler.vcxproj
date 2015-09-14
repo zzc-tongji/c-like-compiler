@@ -79,6 +79,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="example.c.test" />
+    <None Include="example.i.test" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />

@@ -25,8 +25,11 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 int64_t LexicalAnalyse(SourceFile * source_file_p, Error * error_p, std::vector<Block *> * block_pointer_table_p, bool is_block, void * pointer);
 void RemoveBlankWord(bool is_block, void * pointer);
 int64_t ParseFunctionHead(SourceFile * source_file_p, Error * error_p, FunctionItem * function_item_p);
-int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p);
+int64_t SearchFunctionMain(Error * error_p, std::vector<FunctionItem *> * function_table_p);
+int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p, std::vector<FunctionItem *> * function_table_p, std::vector<Block *> * block_table);
 int64_t ParseBlock_GetSymbol(Word * word_p);
+int64_t ParseBlock_GenerateIntermediate(std::vector<CodeItem *> * intermediate_p, char * label, char * op, char * dst, char * src);
+int64_t WriteIntermediateFile(char * path, Error * error_p, std::vector<FunctionItem *> * function_table_p, std::vector<Block *> * block_table);
 
 int main(int argc, char ** argv)
 {
@@ -261,6 +264,12 @@ int main(int argc, char ** argv)
 			return 0;
 		}
 	}
+	if (-1 == SearchFunctionMain(&error, &function_table))
+	{
+		printf("%s\n", error.GetErrorString(&source_file));
+		system("PAUSE");
+		return 0;
+	}
 #ifdef TEST_BLOCK_5
 	// test block #5
 	{
@@ -284,12 +293,18 @@ int main(int argc, char ** argv)
 #endif
 	for (int64_t i = 0; i < block_table.size(); ++i)
 	{
-		if (-1 == ParseBlock(&source_file, &error, block_table[i]))
+		if (-1 == ParseBlock(&source_file, &error, block_table[i], &function_table, &block_table))
 		{
 			printf("%s\n", error.GetErrorString(&source_file));
 			system("PAUSE");
 			return 0;
 		}
+	}
+	if (-1 == WriteIntermediateFile(NULL, &error, &function_table, &block_table))
+	{
+		printf("%s\n", error.GetErrorString(&source_file));
+		system("PAUSE");
+		return 0;
 	}
 	// reclaim memory
 	for (int64_t i = 0; i < function_table.size(); ++i)
@@ -1180,7 +1195,6 @@ int64_t ParseFunctionHead(SourceFile * source_file_p, Error * error_p, FunctionI
 	Word * word_p = function_item_p->word_header.next_;
 	int64_t parameter_number = 0;
 	bool end = false;
-	//VariableItem temp;
 	// type of return value
 	VariableItem * pointer;
 	if (NULL == word_p)
@@ -1283,7 +1297,7 @@ int64_t ParseFunctionHead(SourceFile * source_file_p, Error * error_p, FunctionI
 		if (NULL == function_item_p->parameter_table_[function_item_p->parameter_table_.size() - 1])
 		{
 			error_p->major_no_ = 3;
-			error_p->minor_no_ = 9;
+			error_p->minor_no_ = 10;
 			return -1;
 		}
 		function_item_p->parameter_table_[function_item_p->parameter_table_.size() - 1]->type_ = VariableItem::c_int_;
@@ -1309,7 +1323,15 @@ int64_t ParseFunctionHead(SourceFile * source_file_p, Error * error_p, FunctionI
 		{
 			// error
 			error_p->major_no_ = 3;
-			error_p->minor_no_ = 9;
+			error_p->minor_no_ = 10;
+			return -1;
+		}
+		sprintf(VariableItem::s_buffer_, "function_%s_%s", function_item_p->name_, word_p->content_);
+		if (-1 == function_item_p->parameter_table_[function_item_p->parameter_table_.size() - 1]->SetGlobalName(VariableItem::s_buffer_))
+		{
+			// error
+			error_p->major_no_ = 3;
+			error_p->minor_no_ = 10;
 			return -1;
 		}
 		// "," or ")"
@@ -1338,10 +1360,57 @@ int64_t ParseFunctionHead(SourceFile * source_file_p, Error * error_p, FunctionI
 			}
 		}
 	}
+	// [label_1]:
+	if (-1 == ParseBlock_GenerateIntermediate(&(function_item_p->intermediate), function_item_p->name_, NULL, NULL, NULL))
+	{
+		// error
+		error_p->major_no_ = 3;
+		error_p->minor_no_ = 10;
+		return -1;
+	}
+	// JMP [function_item_p->block_tree->name_in_]
+	if (-1 == ParseBlock_GenerateIntermediate(&(function_item_p->intermediate), NULL, "JMP", NULL, function_item_p->block_tree->name_in_))
+	{
+		// error
+		error_p->major_no_ = 3;
+		error_p->minor_no_ = 10;
+		return -1;
+	}
+	// [function_item_p->block_tree->name_out_]:
+	if (-1 == ParseBlock_GenerateIntermediate(&(function_item_p->intermediate), function_item_p->block_tree->name_out_, NULL, NULL, NULL))
+	{
+		// error
+		error_p->major_no_ = 3;
+		error_p->minor_no_ = 10;
+		return -1;
+	}
+	// RET RC1
+	if (-1 == ParseBlock_GenerateIntermediate(&(function_item_p->intermediate), NULL, "RET", NULL, "RC1"))
+	{
+		// error
+		error_p->major_no_ = 3;
+		error_p->minor_no_ = 10;
+		return -1;
+	}
 	return 1;
 }
 
-int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p)
+int64_t SearchFunctionMain(Error * error_p, std::vector<FunctionItem *> * function_table_p)
+{
+	for (int64_t i = 0; i < function_table_p->size(); ++i)
+	{
+		if (0 == strcmp((*function_table_p)[i]->name_, "main"))
+		{
+			return 1;
+		}
+	}
+	// error
+	error_p->major_no_ = 3;
+	error_p->minor_no_ = 9;
+	return -1;
+}
+
+int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p, std::vector<FunctionItem *> * function_table_p, std::vector<Block *> * block_table)
 {
 	if (NULL == source_file_p)
 	{
@@ -1560,15 +1629,15 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p)
 	}
 #endif
 	std::vector<ParserItem *> parser_table;
-	ParserItem * pointer = NULL;
+	ParserItem * pi_p = NULL;
 	for (int64_t i = 0; i < 25; ++i)
 	{
-		parser_table.push_back(pointer);
+		parser_table.push_back(pi_p);
 		parser_table[parser_table.size() - 1] = ParserItem::s_Malloc();
 		if (NULL == parser_table[parser_table.size() - 1])
 		{
 			error_p->major_no_ = 4;
-			error_p->minor_no_ = 2;
+			error_p->minor_no_ = 4;
 			return -1;
 		}
 	}
@@ -1703,8 +1772,8 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p)
 		system("PAUSE");
 	}
 #endif
+	// symbol stack
 	std::vector<int64_t> symbol_stack;
-	Word * word_p;
 	int64_t stack_top_vt;
 	int64_t next_vt;
 	int64_t vt_index_1;
@@ -1713,13 +1782,63 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p)
 	int64_t phrase_end_index;
 	int64_t phrase_length;
 	int64_t selected_phrase_index;
+	// tag
 	bool matched;
-	bool first_phrase = true;
 	bool end_immediate = false;
-	//prioritized operators algorithm
+	bool function_call;
+	// word
+	Word * word_p;
+	Word * word_previous_p;
+	Word * temp;
+	// Block
+	Block * blk_p;
+	// register
+	char * rc1 = "RC1";
+	bool rc1_lock = false;
+	char * rc2 = "RC2";
+	bool rc2_lock = false;
+	char * rc3 = "RC3";
+	bool rc3_lock = false;
+	char * rl = "RL";
+	// constant;
+	char * constant;
+	// variable
+	char * variable_name;
+	char * variable_global_name;
+	bool variable_defined;
+	// function
+	char * function_name;
+	bool function_defined;
+	// parameter
+	char * parameter_name;
+	// label
+	char label_1[1024];
+	char label_2[1024];
+	char * label_block_1_in;
+	char * label_block_1_out;
+	char * label_block_2_in;
+	char * label_block_2_out;
+	// prioritized operators algorithm
+	// [block_p->name_in_]:
+	if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), block_p->name_in_, NULL, NULL, NULL))
+	{
+		// error
+		error_p->major_no_ = 4;
+		error_p->minor_no_ = 4;
+		return -1;
+	}
 	word_p = block_p->word_header.next_;
+	word_previous_p = &(block_p->word_header);
 	if (NULL == word_p)
 	{
+		// JMP [block_p->name_out_]
+		if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, block_p->name_out_))
+		{
+			// error
+			error_p->major_no_ = 4;
+			error_p->minor_no_ = 4;
+			return -1;
+		}
 		return 1;
 	}
 	// push '@'
@@ -1753,6 +1872,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p)
 				stack_top_vt = next_vt;
 				symbol_stack.push_back(stack_top_vt);
 				word_p = word_p->next_;
+				word_previous_p = word_previous_p->next_;
 				if (word_p != NULL)
 				{
 					next_vt = ParseBlock_GetSymbol(word_p);
@@ -1810,6 +1930,13 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p)
 		if (false == matched)
 		{
 			// error
+			error_p->major_no_ = 4;
+			error_p->minor_no_ = 1;
+			if (NULL != word_p)
+			{
+				source_file_p->JumpTo(word_p->source_file_index_);
+			}
+			return -1;
 		}
 		// pop
 		for (int64_t i = 0; i < phrase_length; ++i)
@@ -1817,11 +1944,1140 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p)
 			symbol_stack.pop_back();
 		}
 		// push
-		if (selected_phrase_index != 0)
+		if (selected_phrase_index >= 7)
 		{
 			symbol_stack.push_back(ParserItem::c_vn_);
 		}
 		// step 4: semantic processing
+		switch (selected_phrase_index)
+		{
+		case 0:
+			// none
+			break;
+		case 1:
+			// label block 1
+			for (int64_t i = 0; i < block_table->size(); ++i)
+			{
+				if ((*block_table)[i]->end_ == word_previous_p->source_file_index_)
+				{
+					label_block_1_in = (*block_table)[i]->name_in_;
+					label_block_1_out = (*block_table)[i]->name_out_;
+				}
+			}
+			// label
+			block_p->GeneratLabelName(label_1);
+			// CMP RL 0
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rl, "0"))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// JE [label_1]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JE", NULL, label_1))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// JMP [label_block_1_in]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_block_1_in))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// [label_block_1_out]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_block_1_out, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// [label_1]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			break;
+		case 2:
+			// label block 1
+			for (int64_t i = 0; i < block_table->size(); ++i)
+			{
+				if ((*block_table)[i]->end_ == word_previous_p->previous_->previous_->previous_->source_file_index_)
+				{
+					label_block_1_in = (*block_table)[i]->name_in_;
+					label_block_1_out = (*block_table)[i]->name_out_;
+				}
+			}
+			// label block 2
+			for (int64_t i = 0; i < block_table->size(); ++i)
+			{
+				if ((*block_table)[i]->end_ == word_previous_p->source_file_index_)
+				{
+					label_block_2_in = (*block_table)[i]->name_in_;
+					label_block_2_out = (*block_table)[i]->name_out_;
+				}
+			}
+			// label
+			block_p->GeneratLabelName(label_1);
+			block_p->GeneratLabelName(label_2);
+			// CMP RL 0
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rl, "0"))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// JE [label_1]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JE", NULL, label_1))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// JMP [label_block_1_in]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_block_1_in))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// [label_block_1_out]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_block_1_out, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// JMP [label_2]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// [label_1]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// JMP [label_block_2_in]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_block_2_in))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// [label_block_2_out]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_block_2_out, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// [label_2]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			break;
+		case 3:
+			// label block 1
+			for (int64_t i = 0; i < block_table->size(); ++i)
+			{
+				if ((*block_table)[i]->end_ == word_previous_p->source_file_index_)
+				{
+					label_block_1_in = (*block_table)[i]->name_in_;
+					label_block_1_out = (*block_table)[i]->name_out_;
+				}
+			}
+			// label
+			block_p->GeneratLabelName(label_1);
+			block_p->GeneratLabelName(label_2);
+			// [label_2]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// CMP RL 0
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rl, "0"))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// JE [label_1]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JE", NULL, label_1))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// JMP [label_block_1_in]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_block_1_in))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// [label_block_1_out]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_block_1_out, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// JMP [label_2]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// [label_1]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			break;
+		case 4:
+			// none
+			/*
+			// RET RCx
+			if (true == rc3_lock)
+			{
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "RET", NULL, rc3))
+			{
+			// error
+			}
+			rc3_lock = false;
+			}
+			else if (true == rc2_lock)
+			{
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "RET", NULL, rc2))
+			{
+			// error
+			}
+			rc2_lock = false;
+			}
+			else
+			{
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "RET", NULL, rc1))
+			{
+			// error
+			}
+			rc1_lock = false;
+			}
+			*/
+			break;
+		case 5:
+			// variable
+			variable_name = word_previous_p->previous_->previous_->content_;
+			variable_defined = false;
+			// search variable define in block and its ancestor
+			blk_p = block_p;
+			while (false == variable_defined)
+			{
+				for (int64_t i = 0; i < blk_p->variable_table_.size(); ++i)
+				{
+					if (0 == strcmp(variable_name, blk_p->variable_table_[i]->name_))
+					{
+						variable_defined = true;
+						variable_global_name = blk_p->variable_table_[i]->global_name_;
+						break;
+					}
+				}
+				if (NULL == blk_p->parent_)
+				{
+					break;
+				}
+				else
+				{
+					blk_p = blk_p->parent_;
+				}
+			}
+			// no found
+			if (false == variable_defined)
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 2;
+				source_file_p->JumpTo(word_previous_p->source_file_index_);
+				return -1;
+			}
+			// INPUT [variable_global_name] RC1
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "INPUT", variable_global_name, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			break;
+		case 6:
+			// variable
+			variable_name = word_previous_p->previous_->previous_->content_;
+			variable_defined = false;
+			// search variable define in block and its ancestor
+			blk_p = block_p;
+			while (false == variable_defined)
+			{
+				for (int64_t i = 0; i < blk_p->variable_table_.size(); ++i)
+				{
+					if (0 == strcmp(variable_name, blk_p->variable_table_[i]->name_))
+					{
+						variable_defined = true;
+						variable_global_name = blk_p->variable_table_[i]->global_name_;
+						break;
+					}
+				}
+				if (NULL == blk_p->parent_)
+				{
+					break;
+				}
+				else
+				{
+					blk_p = blk_p->parent_;
+				}
+			}
+			// no found
+			if (false == variable_defined)
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 2;
+				source_file_p->JumpTo(word_previous_p->source_file_index_);
+				return -1;
+			}
+			// OUTPUT [variable_global_name] RC1
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "OUTPUT", NULL, variable_global_name))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			break;
+		case 7:
+			// variable
+			for (temp = word_p; true; temp = temp->previous_)
+			{
+				if ('=' == temp->content_[0])
+				{
+					break;
+				}
+			}
+			variable_name = temp->previous_->content_;
+			variable_defined = false;
+			// search variable define in block and its ancestor
+			blk_p = block_p;
+			while (false == variable_defined)
+			{
+				for (int64_t i = 0; i < blk_p->variable_table_.size(); ++i)
+				{
+					if (0 == strcmp(variable_name, blk_p->variable_table_[i]->name_))
+					{
+						variable_defined = true;
+						variable_global_name = blk_p->variable_table_[i]->global_name_;
+						break;
+					}
+				}
+				if (NULL == blk_p->parent_)
+				{
+					break;
+				}
+				else
+				{
+					blk_p = blk_p->parent_;
+				}
+			}
+			// no found
+			if (false == variable_defined)
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 2;
+				source_file_p->JumpTo(word_previous_p->source_file_index_);
+				return -1;
+			}
+			// search variable define in function parameter
+			if (false == variable_defined)
+			{
+				for (int64_t i = 0; i < blk_p->function_->parameter_table_.size(); ++i)
+				{
+					if (0 == strcmp(variable_name, blk_p->function_->parameter_table_[i]->name_))
+					{
+						variable_defined = true;
+						variable_global_name = blk_p->function_->parameter_table_[i]->global_name_;
+						break;
+					}
+				}
+			}
+			// MOV [variable_global_name] RC1
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", variable_global_name, rc1))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			rc1_lock = false;
+			break;
+		case 8:
+			// variable
+			for (temp = word_p; true; temp = temp->previous_)
+			{
+				if ('=' == temp->content_[0])
+				{
+					break;
+				}
+			}
+			variable_name = temp->previous_->content_;
+			variable_defined = false;
+			// search variable define in block and its ancestor
+			blk_p = block_p;
+			while (false == variable_defined)
+			{
+				for (int64_t i = 0; i < blk_p->variable_table_.size(); ++i)
+				{
+					if (0 == strcmp(variable_name, blk_p->variable_table_[i]->name_))
+					{
+						variable_defined = true;
+						variable_global_name = blk_p->variable_table_[i]->global_name_;
+						break;
+					}
+				}
+				if (NULL == blk_p->parent_)
+				{
+					break;
+				}
+				else
+				{
+					blk_p = blk_p->parent_;
+				}
+			}
+			// no found
+			if (false == variable_defined)
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 2;
+				source_file_p->JumpTo(word_previous_p->source_file_index_);
+				return -1;
+			}
+			// search variable define in function parameter
+			if (false == variable_defined)
+			{
+				for (int64_t i = 0; i < blk_p->function_->parameter_table_.size(); ++i)
+				{
+					if (0 == strcmp(variable_name, blk_p->function_->parameter_table_[i]->name_))
+					{
+						variable_defined = true;
+						variable_global_name = blk_p->function_->parameter_table_[i]->global_name_;
+						break;
+					}
+				}
+			}
+			// MOV [variable_global_name] RTV
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", variable_global_name, "RTV"))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			break;
+		case 9:
+			// ADD Rx Ry
+			if (rc2_lock && rc3_lock)
+			{
+				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "ADD", rc2, rc3))
+				{
+					// error
+					error_p->major_no_ = 4;
+					error_p->minor_no_ = 4;
+					return -1;
+				}
+				rc3_lock = false;
+			}
+			else
+			{
+				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "ADD", rc1, rc2))
+				{
+					// error
+					error_p->major_no_ = 4;
+					error_p->minor_no_ = 4;
+					return -1;
+				}
+				rc2_lock = false;
+			}
+			break;
+		case 10:
+			// SUB Rx Ry
+			if (rc2_lock && rc3_lock)
+			{
+				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "SUB", rc2, rc3))
+				{
+					// error
+					error_p->major_no_ = 4;
+					error_p->minor_no_ = 4;
+					return -1;
+				}
+				rc3_lock = false;
+			}
+			else
+			{
+				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "SUB", rc1, rc2))
+				{
+					// error
+					error_p->major_no_ = 4;
+					error_p->minor_no_ = 4;
+					return -1;
+				}
+				rc2_lock = false;
+			}
+			break;
+		case 11:
+			// MUL Rx Ry
+			if (rc2_lock && rc3_lock)
+			{
+				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MUL", rc2, rc3))
+				{
+					// error
+					error_p->major_no_ = 4;
+					error_p->minor_no_ = 4;
+					return -1;
+				}
+				rc3_lock = false;
+			}
+			else
+			{
+				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MUL", rc1, rc2))
+				{
+					// error
+					error_p->major_no_ = 4;
+					error_p->minor_no_ = 4;
+					return -1;
+				}
+				rc2_lock = false;
+			}
+			break;
+		case 12:
+			// DIV Rx Ry
+			if (rc2_lock && rc3_lock)
+			{
+				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "DIV", rc2, rc3))
+				{
+					// error
+					error_p->major_no_ = 4;
+					error_p->minor_no_ = 4;
+					return -1;
+				}
+				rc3_lock = false;
+			}
+			else
+			{
+				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "DIV", rc1, rc2))
+				{
+					// error
+					error_p->major_no_ = 4;
+					error_p->minor_no_ = 4;
+					return -1;
+				}
+				rc2_lock = false;
+			}
+			break;
+		case 13:
+			// MOD Rx Ry
+			if (rc2_lock && rc3_lock)
+			{
+				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOD", rc2, rc3))
+				{
+					// error
+					error_p->major_no_ = 4;
+					error_p->minor_no_ = 4;
+					return -1;
+				}
+				rc3_lock = false;
+			}
+			else
+			{
+				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOD", rc1, rc2))
+				{
+					// error
+					error_p->major_no_ = 4;
+					error_p->minor_no_ = 4;
+					return -1;
+				}
+				rc2_lock = false;
+			}
+			break;
+		case 14:
+			// none
+			break;
+		case 15:
+			// constant
+			constant = word_p->previous_->content_;
+			// function_call or not
+			if ('(' == word_p->previous_->previous_->content_[0])
+			{
+				if (Word::c_identifier_ == word_p->previous_->previous_->previous_->type_)
+				{
+					// function call
+					function_call = true;
+				}
+				else
+				{
+					// not function call
+					function_call = false;
+				}
+			}
+			else
+			{
+				// not function call
+				function_call = false;
+			}
+			if (function_call)
+			{
+				// PARAMETER [constant]
+				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "PARAMETER", NULL, constant))
+				{
+					// error
+					error_p->major_no_ = 4;
+					error_p->minor_no_ = 4;
+					return -1;
+				}
+			}
+			else
+			{
+				// MOV RCx [constant]
+				if (false == rc1_lock)
+				{
+					if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc1, constant))
+					{
+						// error
+						error_p->major_no_ = 4;
+						error_p->minor_no_ = 4;
+						return -1;
+					}
+					rc1_lock = true;
+				}
+				else if (false == rc2_lock)
+				{
+					if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc2, constant))
+					{
+						// error
+						error_p->major_no_ = 4;
+						error_p->minor_no_ = 4;
+						return -1;
+					}
+					rc2_lock = true;
+				}
+				else
+				{
+					if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc3, constant))
+					{
+						// error
+						error_p->major_no_ = 4;
+						error_p->minor_no_ = 4;
+						return -1;
+					}
+					rc3_lock = true;
+				}
+			}
+			break;
+		case 16:
+			// variable
+			variable_name = word_p->previous_->content_;
+			variable_defined = false;
+			// search variable define in block and its ancestor
+			blk_p = block_p;
+			while (false == variable_defined)
+			{
+				for (int64_t i = 0; i < blk_p->variable_table_.size(); ++i)
+				{
+					if (0 == strcmp(variable_name, blk_p->variable_table_[i]->name_))
+					{
+						variable_defined = true;
+						variable_global_name = blk_p->variable_table_[i]->global_name_;
+						break;
+					}
+				}
+				if (NULL == blk_p->parent_)
+				{
+					break;
+				}
+				else
+				{
+					blk_p = blk_p->parent_;
+				}
+			}
+			// search variable define in function parameter
+			if (false == variable_defined)
+			{
+				for (int64_t i = 0; i < blk_p->function_->parameter_table_.size(); ++i)
+				{
+					if (0 == strcmp(variable_name, blk_p->function_->parameter_table_[i]->name_))
+					{
+						variable_defined = true;
+						variable_global_name = blk_p->function_->parameter_table_[i]->global_name_;
+						break;
+					}
+				}
+			}
+			// no found
+			if (false == variable_defined)
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 2;
+				source_file_p->JumpTo(word_previous_p->source_file_index_);
+				return -1;
+			}
+			// function_call or not
+			if ('(' == word_p->previous_->previous_->content_[0])
+			{
+				if (Word::c_identifier_ == word_p->previous_->previous_->previous_->type_)
+				{
+					// function call
+					function_call = true;
+				}
+				else
+				{
+					// not function call
+					function_call = false;
+				}
+			}
+			else
+			{
+				// not function call
+				function_call = false;
+			}
+			if (function_call)
+			{
+				// PARAMETER [variable_global_name]
+				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "PARAMETER", NULL, variable_global_name))
+				{
+					// error
+					error_p->major_no_ = 4;
+					error_p->minor_no_ = 4;
+					return -1;
+				}
+			}
+			else
+			{
+				// MOV RCx [variable_global_name]
+				if (false == rc1_lock)
+				{
+					if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc1, variable_global_name))
+					{
+						// error
+						error_p->major_no_ = 4;
+						error_p->minor_no_ = 4;
+						return -1;
+					}
+					rc1_lock = true;
+				}
+				else if (false == rc2_lock)
+				{
+					if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc2, variable_global_name))
+					{
+						// error
+						error_p->major_no_ = 4;
+						error_p->minor_no_ = 4;
+						return -1;
+					}
+					rc2_lock = true;
+				}
+				else
+				{
+					if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc3, variable_global_name))
+					{
+						// error
+						error_p->major_no_ = 4;
+						error_p->minor_no_ = 4;
+						return -1;
+					}
+					rc3_lock = true;
+				}
+			}
+			break;
+		case 17:
+			// variable
+			variable_name = word_p->previous_->content_;
+			// fill variable table in block
+			block_p->variable_table_.push_back(NULL);
+			block_p->variable_table_[block_p->variable_table_.size() - 1] = VariableItem::s_Malloc();
+			if (NULL == block_p->variable_table_[block_p->variable_table_.size() - 1])
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			block_p->variable_table_[block_p->variable_table_.size() - 1]->type_ = VariableItem::c_int_;
+			block_p->variable_table_[block_p->variable_table_.size() - 1]->SetName(variable_name);
+			sprintf(VariableItem::s_buffer_, "%s_%s", block_p->name_, variable_name);
+			block_p->variable_table_[block_p->variable_table_.size() - 1]->SetGlobalName(VariableItem::s_buffer_);
+			break;
+		case 18:
+		case 19:
+			// function
+			for (temp = word_p; true; temp = temp->previous_)
+			{
+				if ('(' == temp->content_[0])
+				{
+					break;
+				}
+			}
+			function_name = temp->previous_->content_;
+			function_defined = false;
+			for (int64_t i = 0; false == function_defined && i < function_table_p->size(); ++i)
+			{
+				if (0 == strcmp((*function_table_p)[i]->name_, function_name))
+				{
+					function_defined = true;
+				}
+			}
+			// no found
+			if (false == function_defined)
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 3;
+				source_file_p->JumpTo(word_previous_p->source_file_index_);
+				return -1;
+			}
+			// CALL [function_name]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "CALL", NULL, function_name))
+			{
+				// error
+			}
+			break;
+		case 20:
+			// parameter
+			if (Word::c_identifier_ == word_p->previous_->type_)
+			{
+				if (rc3_lock)
+				{
+					parameter_name = "R3";
+					rc3_lock = false;
+				}
+				else if (rc2_lock)
+				{
+					parameter_name = "R2";
+					rc2_lock = false;
+				}
+				else
+				{
+					parameter_name = "R1";
+					rc1_lock = false;
+				}
+			}
+			else
+			{
+				parameter_name = word_p->previous_->content_;
+			}
+			// PARAMETER [parameter_name]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "PARAMETER", NULL, parameter_name))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			break;
+		case 21:
+			// label
+			block_p->GeneratLabelName(label_1);
+			block_p->GeneratLabelName(label_2);
+			// CMP RC1 RC2
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rc1, rc2))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			rc1_lock = false;
+			rc2_lock = false;
+			// JG [label_1]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JG", NULL, label_1))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// MOV RL 0
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "0"))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// JMP [label_2]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// [label_1]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// MOV RL 1
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "1"))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// [label_2]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			break;
+		case 22:
+			// label
+			block_p->GeneratLabelName(label_1);
+			block_p->GeneratLabelName(label_2);
+			// CMP RC1 RC2
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rc1, rc2))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			rc1_lock = false;
+			rc2_lock = false;
+			// JL [label_1]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JL", NULL, label_1))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// MOV RL 0
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "0"))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// JMP [label_2]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// [label_1]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// MOV RL 1
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "1"))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// [label_2]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			break;
+		case 23:
+			// label
+			block_p->GeneratLabelName(label_1);
+			block_p->GeneratLabelName(label_2);
+			// CMP RC1 RC2
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rc1, rc2))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			rc1_lock = false;
+			rc2_lock = false;
+			// JE [label_1]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JE", NULL, label_1))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// MOV RL 0
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "0"))
+			{
+				// error
+			}
+			// JMP [label_2]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// [label_1]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// MOV RL 1
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "1"))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// [label_2]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			break;
+		case 24:
+			// label
+			block_p->GeneratLabelName(label_1);
+			block_p->GeneratLabelName(label_2);
+			// CMP RL 0
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rl, "0"))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// JE [label_1]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JE", NULL, label_1))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// MOV RL 0
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "0"))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// JMP [label_2]
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// [label_1]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// MOV RL 1
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "1"))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			// [label_2]:
+			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
+			{
+				// error
+				error_p->major_no_ = 4;
+				error_p->minor_no_ = 4;
+				return -1;
+			}
+			break;
+		default:
+			throw std::exception("Function \"int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p)\" says: Invalid variable \"selected_phrase_index\".");
+			break;
+		}
+	}
+	// JMP [block_p->name_out_]
+	if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, block_p->name_out_))
+	{
+		// error
+		error_p->major_no_ = 4;
+		error_p->minor_no_ = 4;
+		return -1;
 	}
 	return 1;
 }
@@ -1928,4 +3184,153 @@ int64_t ParseBlock_GetSymbol(Word * word_p)
 		}
 	}
 	word_p = word_p->next_;
+}
+
+int64_t ParseBlock_GenerateIntermediate(std::vector<CodeItem *> * intermediate_p, char * label, char * op, char * dst, char * src)
+{
+	if (NULL == intermediate_p)
+	{
+		throw std::exception("Function \"int64_t ParseBlock_GenerateIntermediate(std::vector<CodeItem *> * intermediate_p, char * label, char * op, char * dst, char * src)\" says: Invalid parameter \"intermediate_p\".");
+	}
+	intermediate_p->push_back(NULL);
+	(*intermediate_p)[intermediate_p->size() - 1] = CodeItem::s_Malloc();
+	if (NULL == (*intermediate_p)[intermediate_p->size() - 1])
+	{
+		return -1;
+	}
+	if (label)
+	{
+		if (-1 == (*intermediate_p)[intermediate_p->size() - 1]->SetLabel(label))
+		{
+			return -1;
+		}
+	}
+	if (op)
+	{
+		if (-1 == (*intermediate_p)[intermediate_p->size() - 1]->SetOp(op))
+		{
+			return -1;
+		}
+	}
+	if (dst)
+	{
+		if (-1 == (*intermediate_p)[intermediate_p->size() - 1]->SetDst(dst))
+		{
+			return -1;
+		}
+	}
+	if (src)
+	{
+		if (-1 == (*intermediate_p)[intermediate_p->size() - 1]->SetSrc(src))
+		{
+			return -1;
+		}
+	}
+	return 1;
+}
+
+int64_t WriteIntermediateFile(char * path, Error * error_p, std::vector<FunctionItem *> * function_table_p, std::vector<Block *> * block_table)
+{
+	if (NULL == block_table)
+	{
+		throw std::exception("Function \"int64_t WriteIntermediateFile(const char * path, std::vector<Block *> * block_table)\" says: Invalid parameter \"block_table\".");
+	}
+	char * path_out;
+	FILE * fp = NULL;
+	FunctionItem * function_item_p;
+	Block * block_p;
+	CodeItem * codeitem_p;
+	if (NULL == path || "" == path)
+	{
+		path_out = "example.i.test";
+	}
+	else
+	{
+		path_out = path;
+	}
+	// open file
+	fp = fopen(path_out, "w");
+	if (NULL == fp)
+	{
+		// error
+
+		return -1;
+	}
+	// program
+	fwrite("PROGRAM START\n", strlen("PROGRAM START\n"), 1, fp);
+	fwrite("                    CALL main\n", strlen("                    CALL main\n"), 1, fp);
+	fwrite("PROGRAM END\n", strlen("PROGRAM END\n"), 1, fp);
+	fwrite("\n\n", strlen("\n\n"), 1, fp);
+	// function
+	for (int64_t i = 0; i < function_table_p->size(); ++i)
+	{
+		function_item_p = (*function_table_p)[i];
+		for (int64_t j = 0; j < function_item_p->intermediate.size(); ++j)
+		{
+			codeitem_p = (function_item_p->intermediate)[j];
+			if (codeitem_p->label_)
+			{
+				fwrite(codeitem_p->label_, strlen(codeitem_p->label_), 1, fp);
+				fwrite(":", 1, 1, fp);
+			}
+			else
+			{
+				fwrite("                    ", 20, 1, fp);
+			}
+			if (codeitem_p->op_)
+			{
+				fwrite(codeitem_p->op_, strlen(codeitem_p->op_), 1, fp);
+				fwrite(" ", 1, 1, fp);
+			}
+			if (codeitem_p->dst_)
+			{
+				fwrite(codeitem_p->dst_, strlen(codeitem_p->dst_), 1, fp);
+				fwrite(" ", 1, 1, fp);
+			}
+			if (codeitem_p->src_)
+			{
+				fwrite(codeitem_p->src_, strlen(codeitem_p->src_), 1, fp);
+			}
+			fwrite("\n", 1, 1, fp);
+		}
+		fwrite("\n\n", strlen("\n\n"), 1, fp);
+	}
+	// block
+	for (int64_t i = 0; i < block_table->size(); ++i)
+	{
+		block_p = (*block_table)[i];
+		for (int64_t j = 0; j < block_p->intermediate.size(); ++j)
+		{
+			codeitem_p = (block_p->intermediate)[j];
+			if (codeitem_p->label_)
+			{
+				fwrite(codeitem_p->label_, strlen(codeitem_p->label_), 1, fp);
+				fwrite(":", 1, 1, fp);
+			}
+			else
+			{
+				fwrite("                    ", 20, 1, fp);
+			}
+			if (codeitem_p->op_)
+			{
+				fwrite(codeitem_p->op_, strlen(codeitem_p->op_), 1, fp);
+				fwrite(" ", 1, 1, fp);
+			}
+			if (codeitem_p->dst_)
+			{
+				fwrite(codeitem_p->dst_, strlen(codeitem_p->dst_), 1, fp);
+				fwrite(" ", 1, 1, fp);
+			}
+			if (codeitem_p->src_)
+			{
+				fwrite(codeitem_p->src_, strlen(codeitem_p->src_), 1, fp);
+			}
+			fwrite("\n", 1, 1, fp);
+		}
+		fwrite("\n\n", strlen("\n\n"), 1, fp);
+	}
+	// close file
+	fclose(fp);
+	fp = NULL;
+	return 1;
 }
