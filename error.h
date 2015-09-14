@@ -61,15 +61,9 @@ char * Error::GetErrorString(SourceFile * source_file_p)
 		sprintf(error_string_, "[0x%04I64X] Fail to match \"\x2F\x2A\" and \"\x2A\x2F\" (annotation tag).", error_no_);
 		break;
 	case 0x1001:
-		sprintf(error_string_, "[0x%04I64X] Fail to match \"(\" and \")\".", error_no_);
-		break;
-	case 0x1002:
-		sprintf(error_string_, "[0x%04I64X] Fail to match \"[\" and \"]\".", error_no_);
-		break;
-	case 0x1003:
 		sprintf(error_string_, "[0x%04I64X] Fail to match \"{\" and \"}\".", error_no_);
 		break;
-	case 0x1004:
+	case 0x1002:
 		sprintf(error_string_, "[0x%04I64X] Fail to acquire enough memory.", error_no_);
 		break;
 	case 0x2001:

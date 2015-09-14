@@ -12,6 +12,7 @@
 #include "word.h"
 #include "parser_item.h"
 
+//#define TEST_BLOCK_0
 //#define TEST_BLOCK_1
 //#define TEST_BLOCK_2
 //#define TEST_BLOCK_3
@@ -28,7 +29,7 @@ int64_t ParseFunctionHead(SourceFile * source_file_p, Error * error_p, FunctionI
 int64_t SearchFunctionMain(Error * error_p, std::vector<FunctionItem *> * function_table_p);
 int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p, std::vector<FunctionItem *> * function_table_p, std::vector<Block *> * block_table);
 int64_t ParseBlock_GetSymbol(Word * word_p);
-int64_t ParseBlock_GenerateIntermediate(std::vector<CodeItem *> * intermediate_p, char * label, char * op, char * dst, char * src);
+int64_t GenerateIntermediate(std::vector<CodeItem *> * intermediate_p, char * label, char * op, char * dst, char * src);
 int64_t WriteIntermediateFile(char * path, Error * error_p, std::vector<FunctionItem *> * function_table_p, std::vector<Block *> * block_table);
 
 int main(int argc, char ** argv)
@@ -38,19 +39,41 @@ int main(int argc, char ** argv)
 	Error error;
 	std::vector<FunctionItem *> function_table;
 	std::vector<Block *> block_table;
-
-	// test file
-	strcpy(path, "example.c.test");
-
+	printf("\n");
+	if (argc == 2)
+	{
+		strcpy(path, argv[1]);
+	}
+	else
+	{
+#ifdef TEST_BLOCK_0
+		// test file
+		strcpy(path, "example.c.test");
+#else
+		printf("Input source file path:\n");
+		scanf("%s", path);
+		printf("\n");
+#endif
+	}
+	printf("Reading source file ...\n");
+	printf("\n");
 	if (-1 == ReadSourceFile(path, &source_file, &error))
 	{
 		printf("%s\n", error.GetErrorString(&source_file));
+		printf("\n");
+		printf("Fail.\n");
+		printf("\n");
 		system("PAUSE");
 		return 0;
 	}
+	printf("Preprocessing ...\n");
+	printf("\n");
 	if (-1 == Preprocess(&source_file, &error, &function_table, &block_table))
 	{
 		printf("%s\n", error.GetErrorString(&source_file));
+		printf("\n");
+		printf("Fail.\n");
+		printf("\n");
 		system("PAUSE");
 		return 0;
 	}
@@ -72,11 +95,16 @@ int main(int argc, char ** argv)
 		system("PAUSE");
 	}
 #endif
+	printf("Lexical Analysing ...\n");
+	printf("\n");
 	for (int64_t i = 0; i < function_table.size(); ++i)
 	{
 		if (-1 == LexicalAnalyse(&source_file, &error, &block_table, false, function_table[i]))
 		{
 			printf("%s\n", error.GetErrorString(&source_file));
+			printf("\n");
+			printf("Fail.\n");
+			printf("\n");
 			system("PAUSE");
 			return 0;
 		}
@@ -86,6 +114,9 @@ int main(int argc, char ** argv)
 		if (-1 == LexicalAnalyse(&source_file, &error, &block_table, true, block_table[i]))
 		{
 			printf("%s\n", error.GetErrorString(&source_file));
+			printf("\n");
+			printf("Fail.\n");
+			printf("\n");
 			system("PAUSE");
 			return 0;
 		}
@@ -187,6 +218,8 @@ int main(int argc, char ** argv)
 		system("PAUSE");
 	}
 #endif
+	printf("Removing blank word ...\n");
+	printf("\n");
 	for (int64_t i = 0; i < function_table.size(); ++i)
 	{
 		RemoveBlankWord(false, function_table[i]);
@@ -255,11 +288,16 @@ int main(int argc, char ** argv)
 		system("PAUSE");
 	}
 #endif
+	printf("Parsing ...\n");
+	printf("\n");
 	for (int64_t i = 0; i < function_table.size(); ++i)
 	{
 		if (-1 == ParseFunctionHead(&source_file, &error, function_table[i]))
 		{
 			printf("%s\n", error.GetErrorString(&source_file));
+			printf("\n");
+			printf("Fail.\n");
+			printf("\n");
 			system("PAUSE");
 			return 0;
 		}
@@ -267,6 +305,9 @@ int main(int argc, char ** argv)
 	if (-1 == SearchFunctionMain(&error, &function_table))
 	{
 		printf("%s\n", error.GetErrorString(&source_file));
+		printf("\n");
+		printf("Fail.\n");
+		printf("\n");
 		system("PAUSE");
 		return 0;
 	}
@@ -296,13 +337,21 @@ int main(int argc, char ** argv)
 		if (-1 == ParseBlock(&source_file, &error, block_table[i], &function_table, &block_table))
 		{
 			printf("%s\n", error.GetErrorString(&source_file));
+			printf("\n");
+			printf("Fail.\n");
+			printf("\n");
 			system("PAUSE");
 			return 0;
 		}
 	}
+	printf("Writing intermediate file ...\n");
+	printf("\n");
 	if (-1 == WriteIntermediateFile(NULL, &error, &function_table, &block_table))
 	{
 		printf("%s\n", error.GetErrorString(&source_file));
+		printf("\n");
+		printf("Fail.\n");
+		printf("\n");
 		system("PAUSE");
 		return 0;
 	}
@@ -313,6 +362,8 @@ int main(int argc, char ** argv)
 		function_table[i] = NULL;
 	}
 	// Do not reclaim memory in "block_table"! They have been reclaimed already.
+	printf("Complete.\n");
+	printf("\n");
 	system("PAUSE");
 	return 0;
 }
@@ -402,9 +453,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 	}
 	// pointer
 	FunctionItem * function_item_pointer = NULL;
-	// stack of '(', '[', '{' and '@' (annotation)
-	std::vector<char> parenthesis;
-	std::vector<char> bracket;
+	// stack of '{' and '@' (annotation)
 	std::vector<char> brace;
 	std::vector<char> annotation;
 	// pointer
@@ -421,7 +470,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 	if (NULL == (*function_table_p)[function_table_p->size() - 1])
 	{
 		error_p->major_no_ = 1;
-		error_p->minor_no_ = 4;
+		error_p->minor_no_ = 2;
 		return -1;
 	}
 	(*function_table_p)[function_table_p->size() - 1]->beginning_ = 0;
@@ -484,7 +533,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 				if (NULL == source_file_p->annotation_table_[source_file_p->annotation_table_.size() - 1])
 				{
 					error_p->major_no_ = 1;
-					error_p->minor_no_ = 4;
+					error_p->minor_no_ = 2;
 					// free
 					Block::s_FreeAll(block_root);
 					return -1;
@@ -512,46 +561,6 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 				source_file_p->index_ += 1;
 			}
 			break;
-		case '(':
-			if (source_file_p->annotation_)
-			{
-				break;
-			}
-			parenthesis.push_back('(');
-			break;
-		case ')':
-			if (source_file_p->annotation_)
-			{
-				break;
-			}
-			if (parenthesis.empty())
-			{
-				error_p->major_no_ = 1;
-				error_p->minor_no_ = 1;
-				return -1;
-			}
-			parenthesis.pop_back();
-			break;
-		case '[':
-			if (source_file_p->annotation_)
-			{
-				break;
-			}
-			bracket.push_back('[');
-			break;
-		case ']':
-			if (source_file_p->annotation_)
-			{
-				break;
-			}
-			if (bracket.empty())
-			{
-				error_p->major_no_ = 1;
-				error_p->minor_no_ = 2;
-				return -1;
-			}
-			bracket.pop_back();
-			break;
 		case '{':
 			if (source_file_p->annotation_)
 			{
@@ -565,7 +574,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 			if (NULL == block_next_p)
 			{
 				error_p->major_no_ = 1;
-				error_p->minor_no_ = 4;
+				error_p->minor_no_ = 2;
 				// free
 				Block::s_FreeAll(block_root);
 				return -1;
@@ -573,7 +582,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 			if (-1 == block_next_p->SetName())
 			{
 				error_p->major_no_ = 1;
-				error_p->minor_no_ = 4;
+				error_p->minor_no_ = 2;
 				// free
 				Block::s_FreeAll(block_root);
 				return -1;
@@ -589,7 +598,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 			if (brace.empty())
 			{
 				error_p->major_no_ = 1;
-				error_p->minor_no_ = 3;
+				error_p->minor_no_ = 1;
 				// free
 				Block::s_FreeAll(block_root);
 				return -1;
@@ -608,7 +617,7 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 				if (NULL == (*function_table_p)[function_table_p->size() - 1])
 				{
 					error_p->major_no_ = 1;
-					error_p->minor_no_ = 4;
+					error_p->minor_no_ = 2;
 					// free
 					Block::s_FreeAll(block_root);
 					return -1;
@@ -626,22 +635,10 @@ int64_t Preprocess(SourceFile * source_file_p, Error * error_p, std::vector<Func
 	source_file_p->line_size_ = source_file_p->line_table_.size();
 	source_file_p->annotation_size_ = source_file_p->annotation_table_.size();
 	// matching (part 2)
-	if (false == parenthesis.empty())
-	{
-		error_p->major_no_ = 1;
-		error_p->minor_no_ = 1;
-		return -1;
-	}
-	if (false == bracket.empty())
-	{
-		error_p->major_no_ = 1;
-		error_p->minor_no_ = 2;
-		return -1;
-	}
 	if (false == brace.empty())
 	{
 		error_p->major_no_ = 1;
-		error_p->minor_no_ = 3;
+		error_p->minor_no_ = 1;
 		// free
 		Block::s_FreeAll(block_root);
 		return -1;
@@ -1361,7 +1358,7 @@ int64_t ParseFunctionHead(SourceFile * source_file_p, Error * error_p, FunctionI
 		}
 	}
 	// [label_1]:
-	if (-1 == ParseBlock_GenerateIntermediate(&(function_item_p->intermediate), function_item_p->name_, NULL, NULL, NULL))
+	if (-1 == GenerateIntermediate(&(function_item_p->intermediate), function_item_p->name_, NULL, NULL, NULL))
 	{
 		// error
 		error_p->major_no_ = 3;
@@ -1369,7 +1366,7 @@ int64_t ParseFunctionHead(SourceFile * source_file_p, Error * error_p, FunctionI
 		return -1;
 	}
 	// JMP [function_item_p->block_tree->name_in_]
-	if (-1 == ParseBlock_GenerateIntermediate(&(function_item_p->intermediate), NULL, "JMP", NULL, function_item_p->block_tree->name_in_))
+	if (-1 == GenerateIntermediate(&(function_item_p->intermediate), NULL, "JMP", NULL, function_item_p->block_tree->name_in_))
 	{
 		// error
 		error_p->major_no_ = 3;
@@ -1377,7 +1374,7 @@ int64_t ParseFunctionHead(SourceFile * source_file_p, Error * error_p, FunctionI
 		return -1;
 	}
 	// [function_item_p->block_tree->name_out_]:
-	if (-1 == ParseBlock_GenerateIntermediate(&(function_item_p->intermediate), function_item_p->block_tree->name_out_, NULL, NULL, NULL))
+	if (-1 == GenerateIntermediate(&(function_item_p->intermediate), function_item_p->block_tree->name_out_, NULL, NULL, NULL))
 	{
 		// error
 		error_p->major_no_ = 3;
@@ -1385,7 +1382,7 @@ int64_t ParseFunctionHead(SourceFile * source_file_p, Error * error_p, FunctionI
 		return -1;
 	}
 	// RET RC1
-	if (-1 == ParseBlock_GenerateIntermediate(&(function_item_p->intermediate), NULL, "RET", NULL, "RC1"))
+	if (-1 == GenerateIntermediate(&(function_item_p->intermediate), NULL, "RET", NULL, "RC1"))
 	{
 		// error
 		error_p->major_no_ = 3;
@@ -1820,7 +1817,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 	char * label_block_2_out;
 	// prioritized operators algorithm
 	// [block_p->name_in_]:
-	if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), block_p->name_in_, NULL, NULL, NULL))
+	if (-1 == GenerateIntermediate(&(block_p->intermediate), block_p->name_in_, NULL, NULL, NULL))
 	{
 		// error
 		error_p->major_no_ = 4;
@@ -1832,7 +1829,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 	if (NULL == word_p)
 	{
 		// JMP [block_p->name_out_]
-		if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, block_p->name_out_))
+		if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, block_p->name_out_))
 		{
 			// error
 			error_p->major_no_ = 4;
@@ -1967,7 +1964,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			// label
 			block_p->GeneratLabelName(label_1);
 			// CMP RL 0
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rl, "0"))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rl, "0"))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -1975,7 +1972,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// JE [label_1]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JE", NULL, label_1))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JE", NULL, label_1))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -1983,7 +1980,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// JMP [label_block_1_in]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_block_1_in))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_block_1_in))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -1991,7 +1988,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// [label_block_1_out]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_block_1_out, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_block_1_out, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -1999,7 +1996,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// [label_1]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2030,7 +2027,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			block_p->GeneratLabelName(label_1);
 			block_p->GeneratLabelName(label_2);
 			// CMP RL 0
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rl, "0"))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rl, "0"))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2038,7 +2035,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// JE [label_1]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JE", NULL, label_1))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JE", NULL, label_1))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2046,7 +2043,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// JMP [label_block_1_in]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_block_1_in))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_block_1_in))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2054,7 +2051,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// [label_block_1_out]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_block_1_out, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_block_1_out, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2062,7 +2059,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// JMP [label_2]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2070,7 +2067,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// [label_1]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2078,7 +2075,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// JMP [label_block_2_in]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_block_2_in))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_block_2_in))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2086,7 +2083,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// [label_block_2_out]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_block_2_out, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_block_2_out, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2094,7 +2091,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// [label_2]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2116,7 +2113,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			block_p->GeneratLabelName(label_1);
 			block_p->GeneratLabelName(label_2);
 			// [label_2]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2124,7 +2121,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// CMP RL 0
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rl, "0"))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rl, "0"))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2132,7 +2129,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// JE [label_1]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JE", NULL, label_1))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JE", NULL, label_1))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2140,7 +2137,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// JMP [label_block_1_in]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_block_1_in))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_block_1_in))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2148,7 +2145,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// [label_block_1_out]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_block_1_out, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_block_1_out, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2156,7 +2153,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// JMP [label_2]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2164,7 +2161,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// [label_1]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2178,7 +2175,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			// RET RCx
 			if (true == rc3_lock)
 			{
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "RET", NULL, rc3))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "RET", NULL, rc3))
 			{
 			// error
 			}
@@ -2186,7 +2183,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			}
 			else if (true == rc2_lock)
 			{
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "RET", NULL, rc2))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "RET", NULL, rc2))
 			{
 			// error
 			}
@@ -2194,7 +2191,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			}
 			else
 			{
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "RET", NULL, rc1))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "RET", NULL, rc1))
 			{
 			// error
 			}
@@ -2238,7 +2235,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// INPUT [variable_global_name] RC1
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "INPUT", variable_global_name, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "INPUT", variable_global_name, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2282,7 +2279,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// OUTPUT [variable_global_name] RC1
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "OUTPUT", NULL, variable_global_name))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "OUTPUT", NULL, variable_global_name))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2346,7 +2343,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				}
 			}
 			// MOV [variable_global_name] RC1
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", variable_global_name, rc1))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", variable_global_name, rc1))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2411,7 +2408,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				}
 			}
 			// MOV [variable_global_name] RTV
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", variable_global_name, "RTV"))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", variable_global_name, "RTV"))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2423,7 +2420,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			// ADD Rx Ry
 			if (rc2_lock && rc3_lock)
 			{
-				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "ADD", rc2, rc3))
+				if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "ADD", rc2, rc3))
 				{
 					// error
 					error_p->major_no_ = 4;
@@ -2434,7 +2431,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			}
 			else
 			{
-				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "ADD", rc1, rc2))
+				if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "ADD", rc1, rc2))
 				{
 					// error
 					error_p->major_no_ = 4;
@@ -2448,7 +2445,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			// SUB Rx Ry
 			if (rc2_lock && rc3_lock)
 			{
-				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "SUB", rc2, rc3))
+				if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "SUB", rc2, rc3))
 				{
 					// error
 					error_p->major_no_ = 4;
@@ -2459,7 +2456,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			}
 			else
 			{
-				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "SUB", rc1, rc2))
+				if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "SUB", rc1, rc2))
 				{
 					// error
 					error_p->major_no_ = 4;
@@ -2473,7 +2470,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			// MUL Rx Ry
 			if (rc2_lock && rc3_lock)
 			{
-				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MUL", rc2, rc3))
+				if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MUL", rc2, rc3))
 				{
 					// error
 					error_p->major_no_ = 4;
@@ -2484,7 +2481,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			}
 			else
 			{
-				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MUL", rc1, rc2))
+				if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MUL", rc1, rc2))
 				{
 					// error
 					error_p->major_no_ = 4;
@@ -2498,7 +2495,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			// DIV Rx Ry
 			if (rc2_lock && rc3_lock)
 			{
-				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "DIV", rc2, rc3))
+				if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "DIV", rc2, rc3))
 				{
 					// error
 					error_p->major_no_ = 4;
@@ -2509,7 +2506,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			}
 			else
 			{
-				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "DIV", rc1, rc2))
+				if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "DIV", rc1, rc2))
 				{
 					// error
 					error_p->major_no_ = 4;
@@ -2523,7 +2520,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			// MOD Rx Ry
 			if (rc2_lock && rc3_lock)
 			{
-				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOD", rc2, rc3))
+				if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOD", rc2, rc3))
 				{
 					// error
 					error_p->major_no_ = 4;
@@ -2534,7 +2531,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			}
 			else
 			{
-				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOD", rc1, rc2))
+				if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOD", rc1, rc2))
 				{
 					// error
 					error_p->major_no_ = 4;
@@ -2572,7 +2569,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			if (function_call)
 			{
 				// PARAMETER [constant]
-				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "PARAMETER", NULL, constant))
+				if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "PARAMETER", NULL, constant))
 				{
 					// error
 					error_p->major_no_ = 4;
@@ -2585,7 +2582,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				// MOV RCx [constant]
 				if (false == rc1_lock)
 				{
-					if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc1, constant))
+					if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc1, constant))
 					{
 						// error
 						error_p->major_no_ = 4;
@@ -2596,7 +2593,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				}
 				else if (false == rc2_lock)
 				{
-					if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc2, constant))
+					if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc2, constant))
 					{
 						// error
 						error_p->major_no_ = 4;
@@ -2607,7 +2604,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				}
 				else
 				{
-					if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc3, constant))
+					if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc3, constant))
 					{
 						// error
 						error_p->major_no_ = 4;
@@ -2688,7 +2685,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			if (function_call)
 			{
 				// PARAMETER [variable_global_name]
-				if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "PARAMETER", NULL, variable_global_name))
+				if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "PARAMETER", NULL, variable_global_name))
 				{
 					// error
 					error_p->major_no_ = 4;
@@ -2701,7 +2698,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				// MOV RCx [variable_global_name]
 				if (false == rc1_lock)
 				{
-					if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc1, variable_global_name))
+					if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc1, variable_global_name))
 					{
 						// error
 						error_p->major_no_ = 4;
@@ -2712,7 +2709,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				}
 				else if (false == rc2_lock)
 				{
-					if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc2, variable_global_name))
+					if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc2, variable_global_name))
 					{
 						// error
 						error_p->major_no_ = 4;
@@ -2723,7 +2720,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				}
 				else
 				{
-					if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc3, variable_global_name))
+					if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rc3, variable_global_name))
 					{
 						// error
 						error_p->major_no_ = 4;
@@ -2781,7 +2778,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// CALL [function_name]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "CALL", NULL, function_name))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "CALL", NULL, function_name))
 			{
 				// error
 			}
@@ -2811,7 +2808,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				parameter_name = word_p->previous_->content_;
 			}
 			// PARAMETER [parameter_name]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "PARAMETER", NULL, parameter_name))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "PARAMETER", NULL, parameter_name))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2824,7 +2821,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			block_p->GeneratLabelName(label_1);
 			block_p->GeneratLabelName(label_2);
 			// CMP RC1 RC2
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rc1, rc2))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rc1, rc2))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2834,7 +2831,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			rc1_lock = false;
 			rc2_lock = false;
 			// JG [label_1]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JG", NULL, label_1))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JG", NULL, label_1))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2842,7 +2839,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// MOV RL 0
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "0"))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "0"))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2850,7 +2847,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// JMP [label_2]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2858,7 +2855,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// [label_1]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2866,7 +2863,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// MOV RL 1
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "1"))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "1"))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2874,7 +2871,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// [label_2]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2887,7 +2884,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			block_p->GeneratLabelName(label_1);
 			block_p->GeneratLabelName(label_2);
 			// CMP RC1 RC2
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rc1, rc2))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rc1, rc2))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2897,7 +2894,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			rc1_lock = false;
 			rc2_lock = false;
 			// JL [label_1]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JL", NULL, label_1))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JL", NULL, label_1))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2905,7 +2902,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// MOV RL 0
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "0"))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "0"))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2913,7 +2910,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// JMP [label_2]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2921,7 +2918,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// [label_1]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2929,7 +2926,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// MOV RL 1
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "1"))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "1"))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2937,7 +2934,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// [label_2]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2950,7 +2947,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			block_p->GeneratLabelName(label_1);
 			block_p->GeneratLabelName(label_2);
 			// CMP RC1 RC2
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rc1, rc2))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rc1, rc2))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2960,7 +2957,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			rc1_lock = false;
 			rc2_lock = false;
 			// JE [label_1]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JE", NULL, label_1))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JE", NULL, label_1))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2968,12 +2965,12 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// MOV RL 0
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "0"))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "0"))
 			{
 				// error
 			}
 			// JMP [label_2]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2981,7 +2978,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// [label_1]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2989,7 +2986,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// MOV RL 1
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "1"))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "1"))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -2997,7 +2994,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// [label_2]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -3010,7 +3007,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 			block_p->GeneratLabelName(label_1);
 			block_p->GeneratLabelName(label_2);
 			// CMP RL 0
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rl, "0"))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "CMP", rl, "0"))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -3018,7 +3015,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// JE [label_1]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JE", NULL, label_1))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JE", NULL, label_1))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -3026,7 +3023,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// MOV RL 0
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "0"))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "0"))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -3034,7 +3031,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// JMP [label_2]
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, label_2))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -3042,7 +3039,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// [label_1]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_1, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -3050,7 +3047,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// MOV RL 1
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "1"))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "MOV", rl, "1"))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -3058,7 +3055,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 				return -1;
 			}
 			// [label_2]:
-			if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
+			if (-1 == GenerateIntermediate(&(block_p->intermediate), label_2, NULL, NULL, NULL))
 			{
 				// error
 				error_p->major_no_ = 4;
@@ -3072,7 +3069,7 @@ int64_t ParseBlock(SourceFile * source_file_p, Error * error_p, Block * block_p,
 		}
 	}
 	// JMP [block_p->name_out_]
-	if (-1 == ParseBlock_GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, block_p->name_out_))
+	if (-1 == GenerateIntermediate(&(block_p->intermediate), NULL, "JMP", NULL, block_p->name_out_))
 	{
 		// error
 		error_p->major_no_ = 4;
@@ -3186,11 +3183,11 @@ int64_t ParseBlock_GetSymbol(Word * word_p)
 	word_p = word_p->next_;
 }
 
-int64_t ParseBlock_GenerateIntermediate(std::vector<CodeItem *> * intermediate_p, char * label, char * op, char * dst, char * src)
+int64_t GenerateIntermediate(std::vector<CodeItem *> * intermediate_p, char * label, char * op, char * dst, char * src)
 {
 	if (NULL == intermediate_p)
 	{
-		throw std::exception("Function \"int64_t ParseBlock_GenerateIntermediate(std::vector<CodeItem *> * intermediate_p, char * label, char * op, char * dst, char * src)\" says: Invalid parameter \"intermediate_p\".");
+		throw std::exception("Function \"int64_t GenerateIntermediate(std::vector<CodeItem *> * intermediate_p, char * label, char * op, char * dst, char * src)\" says: Invalid parameter \"intermediate_p\".");
 	}
 	intermediate_p->push_back(NULL);
 	(*intermediate_p)[intermediate_p->size() - 1] = CodeItem::s_Malloc();
