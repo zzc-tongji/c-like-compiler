@@ -34,30 +34,48 @@ int64_t WriteIntermediateFile(char * path, Error * error_p, std::vector<Function
 
 int main(int argc, char ** argv)
 {
-	char path[1024];
+	char input_path[1024];
+	char output_path[1024];
 	SourceFile source_file;
 	Error error;
 	std::vector<FunctionItem *> function_table;
 	std::vector<Block *> block_table;
 	printf("\n");
-	if (argc == 2)
+	if (argc == 3)
 	{
-		strcpy(path, argv[1]);
+		strcpy(input_path, argv[1]);
+		strcpy(output_path, argv[2]);
+	}
+	else if (argc == 2)
+	{
+		strcpy(input_path, argv[1]);
+#ifdef TEST_BLOCK_0
+		// test file
+		strcpy(output_path, "example.i.test");
+#else
+		printf("Input intermediate file path:\n");
+		scanf("%s", output_path);
+		printf("\n");
+#endif
 	}
 	else
 	{
 #ifdef TEST_BLOCK_0
 		// test file
-		strcpy(path, "example.c.test");
+		strcpy(input_path, "example.c.test");
+		strcpy(output_path, "example.i.test");
 #else
 		printf("Input source file path:\n");
-		scanf("%s", path);
+		scanf("%s", input_path);
+		printf("\n");
+		printf("Input intermediate file path:\n");
+		scanf("%s", output_path);
 		printf("\n");
 #endif
 	}
 	printf("Reading source file ...\n");
 	printf("\n");
-	if (-1 == ReadSourceFile(path, &source_file, &error))
+	if (-1 == ReadSourceFile(input_path, &source_file, &error))
 	{
 		printf("%s\n", error.GetErrorString(&source_file));
 		printf("\n");
@@ -346,7 +364,7 @@ int main(int argc, char ** argv)
 	}
 	printf("Writing intermediate file ...\n");
 	printf("\n");
-	if (-1 == WriteIntermediateFile(NULL, &error, &function_table, &block_table))
+	if (-1 == WriteIntermediateFile(output_path, &error, &function_table, &block_table))
 	{
 		printf("%s\n", error.GetErrorString(&source_file));
 		printf("\n");
@@ -3228,29 +3246,34 @@ int64_t GenerateIntermediate(std::vector<CodeItem *> * intermediate_p, char * la
 
 int64_t WriteIntermediateFile(char * path, Error * error_p, std::vector<FunctionItem *> * function_table_p, std::vector<Block *> * block_table)
 {
+	if (NULL == path || "" == path)
+	{
+		throw std::exception("Function \"int64_t WriteIntermediateFile(char * path, Error * error_p, std::vector<FunctionItem *> * function_table_p, std::vector<Block *> * block_table)\" says: Invalid parameter \"path\".");
+	}
+	if (NULL == error_p)
+	{
+		throw std::exception("Function \"int64_t WriteIntermediateFile(char * path, Error * error_p, std::vector<FunctionItem *> * function_table_p, std::vector<Block *> * block_table)\" says: Invalid parameter \"error_p\".");
+	}
+	if (NULL == function_table_p)
+	{
+		throw std::exception("Function \"int64_t WriteIntermediateFile(char * path, Error * error_p, std::vector<FunctionItem *> * function_table_p, std::vector<Block *> * block_table)\" says: Invalid parameter \"function_table_p\".");
+	}
 	if (NULL == block_table)
 	{
-		throw std::exception("Function \"int64_t WriteIntermediateFile(const char * path, std::vector<Block *> * block_table)\" says: Invalid parameter \"block_table\".");
+		throw std::exception("Function \"int64_t WriteIntermediateFile(char * path, Error * error_p, std::vector<FunctionItem *> * function_table_p, std::vector<Block *> * block_table)\" says: Invalid parameter \"block_table\".");
 	}
-	char * path_out;
+	char * path_out = path;
 	FILE * fp = NULL;
 	FunctionItem * function_item_p;
 	Block * block_p;
 	CodeItem * codeitem_p;
-	if (NULL == path || "" == path)
-	{
-		path_out = "example.i.test";
-	}
-	else
-	{
-		path_out = path;
-	}
 	// open file
 	fp = fopen(path_out, "w");
 	if (NULL == fp)
 	{
 		// error
-
+		error_p->major_no_ = 5;
+		error_p->minor_no_ = 1;
 		return -1;
 	}
 	// program

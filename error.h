@@ -117,6 +117,9 @@ char * Error::GetErrorString(SourceFile * source_file_p)
 	case 0x4004:
 		sprintf(error_string_, "[0x%04I64X] Fail to acquire enough memory.", error_no_);
 		break;
+	case 0x5001:
+		sprintf(error_string_, "[0x%04I64X] Fail to open intermediate file.", error_no_);
+		break;
 	default:
 		error_string_[0] = '\0';
 		break;
